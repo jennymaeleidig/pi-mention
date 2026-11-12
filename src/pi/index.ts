@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { installAutocomplete } from "./autocomplete.ts";
-import { installContextEscapes } from "./context.ts";
+import { installContextExpansion } from "./context.ts";
 import { pathCatalog } from "./catalogs/paths.ts";
 import { roleCatalog } from "./catalogs/roles.ts";
 import { skillCatalog } from "./catalogs/skills.ts";
@@ -33,7 +33,7 @@ export function register(pi: ExtensionAPI): void {
     if (!seamsInstalled) {
       seamsInstalled = true;
       installSkillInput(pi, settings);
-      installContextEscapes(pi, settings);
+      installContextExpansion(pi, settings);
     }
 
     if (diagnostics.length > 0) {

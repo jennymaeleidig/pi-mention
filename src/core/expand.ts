@@ -1,11 +1,13 @@
 import { findCodeRanges, inRanges } from "./grammar.ts";
 import type {
+  Catalogs,
   ExpandOptions,
   ExpandedMessage,
   Range,
   ResolvedMention,
   Settings,
   SkillSource,
+  Target,
 } from "./types.ts";
 
 /** The opening marker of Pi's native skill block. */
@@ -158,4 +160,114 @@ export function expand(
     text: prose ? `${skillBlock}\n\n${prose}` : skillBlock,
     skillBlock,
   };
+}
+
+function toolKey(target: Target): string {
+  return target.name ?? target.label;
+}
+
+/** Prefer the live catalog entry, so the block always reads current metadata. */
+function liveToolTarget(target: Target, catalogs: Catalogs): Target {
+  const key = toolKey(target);
+  return catalogs.tools.find((candidate) => toolKey(candidate) === key) ?? target;
+}
+
+function toolSignature(target: Target): string {
+  return (
+    target.signature ?? `${target.identifier ?? toolKey(target)}(args: unknown): Promise<unknown>;`
+  );
+}
+
+function toolBlockLine(target: Target): string {
+  const name = toolKey(target);
+  if (target.reach === "indirect") {
+    const identifier = target.identifier ?? name;
+    const server = target.server ? ` (${target.server})` : "";
+    return (
+      `- \`${name}\`${server} — not declared to you. ` +
+      `Reach it inside a codemode script: \`await tools.${identifier}(...)\`. ` +
+      `Signature: ${toolSignature(target)}`
+    );
+  }
+  return `- \`${name}\` — call it directly. Signature: ${toolSignature(target)}`;
+}
+
+/**
+ * Expand eligible `%tool` mentions for the model-facing message.
+ *
+ * Every resolved mention is replaced inline by its registered name. One
+ * `<tool_mentions>` block follows the prose, with one entry per distinct target
+ * in first-occurrence order. The leading native skill block and code ranges are
+ * opaque. Unresolved, excluded and out-of-catalog mentions stay literal, and
+ * this function activates and declares nothing.
+ */
+export interface ExpandToolsOptions {
+  /** False when the caller joins several text parts into one block. */
+  appendBlock?: boolean;
+}
+
+function eligibleToolMentions(
+  message: string,
+  resolved: readonly ResolvedMention[],
+): ResolvedMention[] {
+  const skillBlock = skillBlockBounds(message);
+  const proseStart = skillBlock ? (skillBlock.end ?? message.length) : 0;
+  return resolved
+    .filter(
+      (candidate) =>
+        candidate.mention.class === "tool" &&
+        candidate.status === "resolved" &&
+        candidate.target !== undefined &&
+        candidate.mention.span.start >= proseStart,
+    )
+    .sort((a, b) => a.mention.span.start - b.mention.span.start);
+}
+
+function uniqueToolTargets(mentions: readonly ResolvedMention[], catalogs: Catalogs): Target[] {
+  const entries: Target[] = [];
+  const seen = new Set<string>();
+  for (const candidate of mentions) {
+    const target = liveToolTarget(candidate.target!, catalogs);
+    const key = toolKey(target);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    entries.push(target);
+  }
+  return entries;
+}
+
+/** The distinct targets one text's tool block lists, in first-occurrence order. */
+export function toolBlockEntries(
+  message: string,
+  resolved: readonly ResolvedMention[],
+  catalogs: Catalogs,
+): Target[] {
+  return uniqueToolTargets(eligibleToolMentions(message, resolved), catalogs);
+}
+
+/** Render the single `<tool_mentions>` block for a message. */
+export function toolBlockText(entries: readonly Target[]): string {
+  return `<tool_mentions>\n${entries.map(toolBlockLine).join("\n")}\n</tool_mentions>`;
+}
+
+export function expandTools(
+  message: string,
+  resolved: readonly ResolvedMention[],
+  catalogs: Catalogs,
+  _settings: Settings,
+  options: ExpandToolsOptions = {},
+): ExpandedMessage {
+  const mentions = eligibleToolMentions(message, resolved);
+  if (mentions.length === 0) return { text: message };
+
+  let text = message;
+  for (const candidate of [...mentions].reverse()) {
+    const target = liveToolTarget(candidate.target!, catalogs);
+    const { start, end } = candidate.mention.span;
+    text = `${text.slice(0, start)}\`${toolKey(target)}\`${text.slice(end)}`;
+  }
+  if (options.appendBlock === false) return { text };
+
+  const entries = uniqueToolTargets(mentions, catalogs);
+  return { text: `${text}\n\n${toolBlockText(entries)}` };
 }

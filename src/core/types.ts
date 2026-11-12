@@ -22,6 +22,9 @@ export interface TriggerSpec {
   trigger: string;
 }
 
+/** How the model can reach a tool in this session. */
+export type ToolReach = "direct" | "indirect";
+
 /** A target as the live catalog knows it. */
 export interface Target {
   class: TokenClass;
@@ -33,6 +36,14 @@ export interface Target {
   description?: string;
   /** Where the target came from, when the catalog knows: pi's source scope. */
   scope?: "user" | "project" | "temporary";
+  /** A tool's routing class, when the live catalog knows it. */
+  reach?: ToolReach;
+  /** A tool's server alias, used by the indirect wording. */
+  server?: string;
+  /** The identifier a codemode script uses for this tool. */
+  identifier?: string;
+  /** The one-line signature the tool block carries. */
+  signature?: string;
 }
 
 export type Resolution = "resolved" | "unresolved" | "excluded";
