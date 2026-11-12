@@ -66,7 +66,10 @@ export function installSkillInput(
     const resolved = resolve(skills, session.catalogs, settings);
     const selected = firstResolvedSkill(resolved)?.target;
     const entry = selected ? session.skillEntry(selected) : undefined;
-    const source = entry ? await readSkill(entry) : undefined;
+    // A pathless skill stays in the colour and picker catalogs but has no
+    // SKILL.md to expand. It is unresolved here, exactly as before.
+    if (!entry) return { action: "continue" };
+    const source = await readSkill(entry);
 
     const expanded = expandSkill(event.text, resolved, {
       skillSource: () => source,

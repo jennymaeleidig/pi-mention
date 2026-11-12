@@ -20,7 +20,7 @@ type Handler = (event: InputEvent, ctx: ExtensionContext) => Promise<InputEventR
 interface Command {
   name: string;
   source: "skill";
-  sourceInfo: { path: string; scope?: "user" | "project"; baseDir?: string };
+  sourceInfo: { path?: string; scope?: "user" | "project"; baseDir?: string };
 }
 
 function setup(commands: () => Command[], settings: Settings = defaultSettings()) {
@@ -193,6 +193,14 @@ test("print, JSON and RPC modes transform without crashing", async () => {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("a pathless skill stays literal without a failure notice", async () => {
+  const run = setup(() => [{ name: "skill:tdd", source: "skill", sourceInfo: {} }]);
+  const { result, notifications } = await run("$tdd", { hasUI: true });
+
+  assert.deepEqual(result, { action: "continue" });
+  assert.deepEqual(notifications, []);
 });
 
 test("an existing native skill block stays untouched, even with a trigger in its body", async () => {

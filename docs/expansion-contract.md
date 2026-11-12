@@ -153,7 +153,7 @@ The user selected the `general` role but gave no task. Do not call the `subagent
 
 ## Seam
 
-There are two pure expansion seams, one per seam:
+There are two pure expansion seams:
 
 ```ts
 expandSkill(
