@@ -165,6 +165,13 @@ expandTools(
   options?: ExpandToolsOptions,
 ): ExpandedMessage
 
+expandRoles(
+  message: string,
+  resolved: ResolvedMention[],
+  catalogs: Catalogs,
+  config: Settings,
+): ExpandedMessage
+
 toolBlockEntries(
   message: string,
   resolved: ResolvedMention[],
@@ -187,6 +194,13 @@ tool block; `options.appendBlock: false` lets the context adapter do that once
 for a multi-part message. `toolBlockEntries` returns the distinct targets a
 message contributes, and `toolBlockText` renders them, so a multi-part message
 can share one block after its last text part.
+
+`expandRoles` takes the message text, the already-resolved role mentions, the
+plain-data catalogs and configuration. Only the first non-whitespace prose token,
+after any native skill block, is eligible. A resolved role is replaced in place
+by the dispatch prefix; the rest of the prose is the task after a blank line, or
+the no-task text when nothing follows. Every other role mention stays literal.
+The role body is never read or inlined.
 
 Neither seam performs I/O, registers anything, activates anything, or edits the
 prompt's tool section. Both keep unresolved, excluded and out-of-catalog

@@ -162,6 +162,89 @@ export function expand(
   };
 }
 
+/** The first non-whitespace prose token, skipping a leading native skill block. */
+function leadingRoleMention(
+  message: string,
+  resolved: readonly ResolvedMention[],
+): ResolvedMention | undefined {
+  const block = skillBlockBounds(message);
+  if (block && block.end === undefined) return undefined;
+
+  let start = block?.end ?? 0;
+  while (isWhitespace(message[start])) start++;
+
+  return resolved.find(
+    (candidate) => candidate.mention.class === "role" && candidate.mention.span.start === start,
+  );
+}
+
+/** Prefer the live catalog entry, so expansion names the role the spawner knows. */
+function liveRoleTarget(target: Target, catalogs: Catalogs): Target | undefined {
+  return catalogs.roles.find(
+    (candidate) =>
+      candidate.label === target.label &&
+      (candidate.name ?? candidate.label) === (target.name ?? target.label),
+  );
+}
+
+function roleName(target: Target): string {
+  return target.name ?? target.label;
+}
+
+/** The leading-only dispatch prefix from the expansion contract. */
+function roleDispatchPrefix(name: string): string {
+  return (
+    `[subagent dispatch: role ${JSON.stringify(name)}]\n` +
+    `Call the \`subagent\` tool now and delegate the rest of this message to the \`${name}\` role. ` +
+    `Call it with \`tasks: [{ "agent": ${JSON.stringify(name)}, "task": "<the rest of this message>" }]\`, ` +
+    "using the text after this line as the `task` brief. " +
+    "Make the brief self-contained: if it refers to earlier conversation, restate what the subagent needs, " +
+    "but keep the user's intent and wording. " +
+    "Do not do the task yourself."
+  );
+}
+
+/** The no-task text from the expansion contract: ask, never dispatch. */
+function roleNoTaskText(name: string): string {
+  return (
+    `[subagent dispatch: role ${JSON.stringify(name)}]\n` +
+    `The user selected the \`${name}\` role but gave no task. ` +
+    `Do not call the \`subagent\` tool. Ask the user what to delegate to \`${name}\`.`
+  );
+}
+
+/**
+ * Expand a leading `&role` mention for the model-facing message.
+ *
+ * Only the first non-whitespace prose token, after any native skill block, is
+ * eligible. A resolved role is replaced in place by the dispatch prefix and the
+ * rest of the message becomes the task after a blank line; with no task the
+ * mention becomes the no-task instruction instead. Unresolved, excluded,
+ * mid-sentence, later and code mentions stay literal. The role body is never
+ * inlined, and this function performs no I/O.
+ */
+export function expandRoles(
+  message: string,
+  resolved: readonly ResolvedMention[],
+  catalogs: Catalogs,
+  _settings: Settings,
+): ExpandedMessage {
+  const mention = leadingRoleMention(message, resolved);
+  if (!mention?.target || mention.status !== "resolved") return { text: message };
+
+  const target = liveRoleTarget(mention.target, catalogs);
+  if (!target) return { text: message };
+
+  const name = roleName(target);
+  const before = message.slice(0, mention.mention.span.start);
+  const task = message.slice(mention.mention.span.end).trim();
+  return {
+    text: task
+      ? `${before}${roleDispatchPrefix(name)}\n\n${task}`
+      : `${before}${roleNoTaskText(name)}`,
+  };
+}
+
 /** The registered name, falling back to the label a user typed. */
 export function toolKey(target: Target): string {
   return target.name ?? target.label;

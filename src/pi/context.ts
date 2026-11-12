@@ -1,7 +1,9 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   dedupeToolTargets,
+  expandRoles,
   expandTools,
+  skillBlockBounds,
   toolBlockEntries,
   toolBlockText,
   unescapeExpandedText,
@@ -9,53 +11,93 @@ import {
 import { parse, triggerSpecs } from "../core/grammar.ts";
 import { resolve } from "../core/resolve.ts";
 import type { Catalogs, Settings, Target } from "../core/types.ts";
+import { roleCatalog } from "./catalogs/roles.ts";
 import { toolCatalog } from "./catalogs/tools.ts";
+
+/** Adapter inputs for role discovery: the session cwd and an optional agent dir. */
+export interface ContextExpansionOptions {
+  cwd?: string;
+  agentDir?: string;
+}
 
 interface ExpandedText {
   text: string;
   entries: Target[];
 }
 
+/** True when the text has prose after any leading native skill block. */
+function hasProse(text: string): boolean {
+  const block = skillBlockBounds(text);
+  if (!block) return text.trim() !== "";
+  if (block.end === undefined) return false;
+  return text.slice(block.end).trim() !== "";
+}
+
 /**
- * Register the context seam for `%tool` expansion and model-facing escapes.
+ * Register the context seam for `%tool` and `&role` expansion and
+ * model-facing escapes.
  *
  * The live tool catalog is read on every context event, synchronously, so a
- * server that connected between requests can resolve its tools. Only resolved
- * mentions change: each becomes its registered name inline and one tool block
- * follows the prose. The persisted transcript is untouched, the leading native
- * skill block stays opaque, and nothing is activated or declared. `&role`
- * expansion belongs to its own ticket; escapes still lose their backslash here
+ * server that connected between requests can resolve its tools. Roles are read
+ * once per extension instance from the user and project agent directories. Tool
+ * mentions expand inline first; then the leading role mention, after any native
+ * skill block, becomes the dispatch prefix. The persisted transcript is
+ * untouched, and nothing is activated or declared. Escapes lose their backslash
  * for the model only.
  */
-export function installContextExpansion(pi: ExtensionAPI, settings: Settings): void {
+export function installContextExpansion(
+  pi: ExtensionAPI,
+  settings: Settings,
+  options: ContextExpansionOptions = {},
+): void {
+  const cwd = options.cwd ?? process.cwd();
+  let roleEntries: Target[] | undefined;
+
   pi.on("context", (event) => {
     let changed = false;
     let catalogs: Catalogs | undefined;
+    let toolEntries: Target[] | undefined;
 
     const liveCatalogs = (): Catalogs =>
       (catalogs ??= {
         skills: [],
-        tools: toolCatalog(pi),
-        roles: [],
+        get tools() {
+          return (toolEntries ??= toolCatalog(pi));
+        },
+        get roles() {
+          return (roleEntries ??= roleCatalog(cwd, options.agentDir));
+        },
         paths: { has: () => false },
       });
 
-    const expandText = (text: string): ExpandedText => {
-      if (!text.includes(settings.triggers.tool)) {
+    const expandText = (text: string, allowRole = true): ExpandedText => {
+      const hasToolTrigger = text.includes(settings.triggers.tool);
+      const hasRoleTrigger = text.includes(settings.triggers.role);
+      if (!hasToolTrigger && !hasRoleTrigger) {
         return { text: unescapeExpandedText(text, settings), entries: [] };
       }
 
       const live = liveCatalogs();
       const { mentions } = parse(text, triggerSpecs(settings));
-      const tools = mentions.filter((mention) => mention.class === "tool");
-      if (tools.length === 0) {
+      const expandable = mentions.filter(
+        (mention) => mention.class === "tool" || mention.class === "role",
+      );
+      if (expandable.length === 0) {
         return { text: unescapeExpandedText(text, settings), entries: [] };
       }
 
-      const resolved = resolve(tools, live, settings);
-      const entries = toolBlockEntries(text, resolved, live);
-      const expanded = expandTools(text, resolved, live, { appendBlock: false });
-      return { text: unescapeExpandedText(expanded.text, settings), entries };
+      const resolved = resolve(expandable, live, settings);
+      let expandedText = text;
+      let entries: Target[] = [];
+      if (resolved.some((mention) => mention.mention.class === "tool")) {
+        entries = toolBlockEntries(text, resolved, live);
+        expandedText = expandTools(text, resolved, live, { appendBlock: false }).text;
+      }
+
+      if (allowRole) {
+        expandedText = expandRoles(expandedText, resolved, live, settings).text;
+      }
+      return { text: unescapeExpandedText(expandedText, settings), entries };
     };
 
     const messages = event.messages.map((message) => {
@@ -71,9 +113,12 @@ export function installContextExpansion(pi: ExtensionAPI, settings: Settings): v
 
       let messageChanged = false;
       const allEntries: Target[] = [];
+      let proseSeen = false;
       const content = message.content.map((part) => {
         if (part.type !== "text") return part;
-        const { text, entries } = expandText(part.text);
+        const allowRole = !proseSeen;
+        if (hasProse(part.text)) proseSeen = true;
+        const { text, entries } = expandText(part.text, allowRole);
         allEntries.push(...entries);
         if (text === part.text) return part;
         messageChanged = true;

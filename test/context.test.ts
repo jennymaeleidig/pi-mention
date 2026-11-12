@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import type {
   ContextEvent,
@@ -8,6 +11,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { installContextExpansion } from "../src/pi/context.ts";
 import { defaultSettings } from "../src/core/settings.ts";
+import type { Settings } from "../src/core/types.ts";
 
 type Handler = (event: ContextEvent) => ContextEventResult | undefined;
 
@@ -65,7 +69,11 @@ function defaultTools(): ToolInfo[] {
   ];
 }
 
-function setup(tools: ToolInfo[] = defaultTools(), active: string[] = ["read", "codemode"]) {
+function setup(
+  tools: ToolInfo[] = defaultTools(),
+  active: string[] = ["read", "codemode"],
+  context: { cwd?: string; agentDir?: string; settings?: Settings } = {},
+) {
   let handler: Handler | undefined;
   const pi = {
     on: (name: string, callback: Handler) => {
@@ -76,7 +84,10 @@ function setup(tools: ToolInfo[] = defaultTools(), active: string[] = ["read", "
     getActiveTools: () => active,
   } as unknown as ExtensionAPI;
 
-  installContextExpansion(pi, defaultSettings());
+  installContextExpansion(pi, context.settings ?? defaultSettings(), {
+    ...(context.cwd ? { cwd: context.cwd } : {}),
+    ...(context.agentDir ? { agentDir: context.agentDir } : {}),
+  });
 
   return (messages: ContextEvent["messages"]) => {
     assert.ok(handler);
@@ -88,6 +99,45 @@ const user = (content: string) => ({ role: "user" as const, content, timestamp: 
 
 const contents = (messages: ContextEvent["messages"] | undefined) =>
   messages?.map((message) => ("content" in message ? message.content : undefined));
+
+function withRoles(roles: Record<string, string>): {
+  cwd: string;
+  agentDir: string;
+  cleanup: () => void;
+} {
+  const root = mkdtempSync(join(tmpdir(), "pi-mention-context-roles-"));
+  const cwd = join(root, "project");
+  const agentDir = join(root, "user");
+  const dir = join(cwd, ".pi", "agents");
+  mkdirSync(dir, { recursive: true });
+  for (const [name, description] of Object.entries(roles)) {
+    writeFileSync(
+      join(dir, `${name}.md`),
+      `---\nname: ${name}\ndescription: ${description}\n---\n`,
+    );
+  }
+  return { cwd, agentDir, cleanup: () => rmSync(root, { recursive: true, force: true }) };
+}
+
+function dispatch(name: string, task: string): string {
+  return (
+    `[subagent dispatch: role "${name}"]\n` +
+    `Call the \`subagent\` tool now and delegate the rest of this message to the \`${name}\` role. ` +
+    `Call it with \`tasks: [{ "agent": "${name}", "task": "<the rest of this message>" }]\`, ` +
+    `using the text after this line as the \`task\` brief. ` +
+    "Make the brief self-contained: if it refers to earlier conversation, restate what the subagent needs, " +
+    "but keep the user's intent and wording. " +
+    `Do not do the task yourself.\n\n${task}`
+  );
+}
+
+function noTask(name: string): string {
+  return (
+    `[subagent dispatch: role "${name}"]\n` +
+    `The user selected the \`${name}\` role but gave no task. ` +
+    `Do not call the \`subagent\` tool. Ask the user what to delegate to \`${name}\`.`
+  );
+}
 
 test("escaped triggers lose only the backslash in the model-facing message", () => {
   const run = setup();
@@ -207,4 +257,115 @@ test("only user text parts change and a no-op returns no result", () => {
   assert.ok(Array.isArray(content));
   assert.deepEqual(content[0], { type: "text", text: "$PATH" });
   assert.deepEqual(content[1], { type: "image", data: "abc", mimeType: "image/png" });
+});
+
+test("a leading resolved role becomes the dispatch instruction", () => {
+  const roles = withRoles({ general: "General-purpose subagent." });
+  try {
+    const run = setup(defaultTools(), ["read", "codemode"], roles);
+    const original = [user("&general summarise this")];
+    const result = run(original);
+    assert.deepEqual(contents(result?.messages), [dispatch("general", "summarise this")]);
+    assert.deepEqual(contents(original), ["&general summarise this"]);
+  } finally {
+    roles.cleanup();
+  }
+});
+
+test("a role with no task asks instead of emitting a malformed call", () => {
+  const roles = withRoles({ general: "General-purpose subagent." });
+  try {
+    const run = setup(defaultTools(), ["read", "codemode"], roles);
+    assert.deepEqual(contents(run([user("&general")])?.messages), [noTask("general")]);
+  } finally {
+    roles.cleanup();
+  }
+});
+
+test("only the leading role expands, and later roles stay literal", () => {
+  const roles = withRoles({ general: "General-purpose subagent." });
+  try {
+    const run = setup(defaultTools(), ["read", "codemode"], roles);
+    assert.equal(run([user("please &general summarise this")]), undefined);
+    assert.deepEqual(contents(run([user("&general x &general y")])?.messages), [
+      dispatch("general", "x &general y"),
+    ]);
+  } finally {
+    roles.cleanup();
+  }
+});
+
+test("an unknown or excluded role stays literal while tools still expand", () => {
+  const roles = withRoles({ general: "General-purpose subagent." });
+  const excluded = defaultSettings();
+  excluded.exclude.roles = ["general"];
+  try {
+    const run = setup(defaultTools(), ["read", "codemode"], roles);
+    assert.deepEqual(contents(run([user("&nope %read do it")])?.messages), [
+      `&nope \`read\` do it\n\n<tool_mentions>\n${READ_LINE}\n</tool_mentions>`,
+    ]);
+
+    const excludedRun = setup(defaultTools(), ["read", "codemode"], {
+      ...roles,
+      settings: excluded,
+    });
+    assert.equal(excludedRun([user("&general summarise this")]), undefined);
+  } finally {
+    roles.cleanup();
+  }
+});
+
+test("a role after the native skill block expands, with tools replaced in its task", () => {
+  const roles = withRoles({ general: "General-purpose subagent." });
+  const block =
+    '<skill name="tdd" location="/abs/tdd/SKILL.md">\n' +
+    "References are relative to /abs/tdd.\n\nKeep %read in the body.\n</skill>";
+  try {
+    const run = setup(defaultTools(), ["read", "codemode"], roles);
+    assert.deepEqual(contents(run([user(`${block}\n\n&general %read do it`)])?.messages), [
+      `${block}\n\n${dispatch("general", "`read` do it")}\n\n<tool_mentions>\n${READ_LINE}\n</tool_mentions>`,
+    ]);
+  } finally {
+    roles.cleanup();
+  }
+});
+
+test("a role in a later text part is not leading prose", () => {
+  const roles = withRoles({ general: "General-purpose subagent." });
+  try {
+    const run = setup(defaultTools(), ["read", "codemode"], roles);
+    assert.equal(
+      run([
+        {
+          ...user(""),
+          content: [
+            { type: "text", text: "please" },
+            { type: "text", text: "&general summarise this" },
+          ],
+        },
+      ] as ContextEvent["messages"]),
+      undefined,
+    );
+
+    const block =
+      '<skill name="tdd" location="/abs/tdd/SKILL.md">\n' +
+      "References are relative to /abs/tdd.\n\nKeep %read in the body.\n</skill>";
+    const result = run([
+      {
+        ...user(""),
+        content: [
+          { type: "text", text: block },
+          { type: "text", text: "&general summarise this" },
+        ],
+      },
+    ] as ContextEvent["messages"]);
+    assert.deepEqual(contents(result?.messages), [
+      [
+        { type: "text", text: block },
+        { type: "text", text: dispatch("general", "summarise this") },
+      ],
+    ]);
+  } finally {
+    roles.cleanup();
+  }
 });

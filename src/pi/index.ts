@@ -34,7 +34,7 @@ export function register(pi: ExtensionAPI): void {
     if (!seamsInstalled) {
       seamsInstalled = true;
       installSkillInput(pi, settings);
-      installContextExpansion(pi, settings);
+      installContextExpansion(pi, settings, { cwd: ctx.cwd });
     }
 
     if (diagnostics.length > 0) {

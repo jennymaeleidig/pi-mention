@@ -72,6 +72,9 @@ expand(message: string, resolved: ResolvedMention[], config: Settings,
 expandTools(message: string, resolved: ResolvedMention[], catalogs: Catalogs,
             options?: ExpandToolsOptions) -> ExpandedMessage
 
+expandRoles(message: string, resolved: ResolvedMention[], catalogs: Catalogs,
+            config: Settings) -> ExpandedMessage
+
 toolBlockEntries(message: string, resolved: ResolvedMention[], catalogs: Catalogs)
   -> Target[]
 
@@ -98,6 +101,12 @@ block; the context adapter uses the two halves to put one block after the last
 text part of a multi-part message. `ToolReach` is `direct` or `indirect`, and
 `toolKey` and `dedupeToolTargets` keep the block, the adapter and the catalog
 agreeing on identity and first-occurrence order.
+
+`expandRoles` is the context seam's leading-only role expander. It replaces the
+first non-whitespace `&role` prose token, after any native skill block, with the
+dispatch prefix and leaves the rest as the task; a role with no task gets the
+no-task instruction instead. Mid-sentence, later, unresolved and excluded roles
+stay literal, and no role body is read or inlined.
 
 `catalogs` is plain data built by the adapters. None of these pure functions
 does I/O, registers anything, activates a tool, or edits the prompt's tool
