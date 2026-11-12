@@ -104,6 +104,16 @@ function scanTool(text: string, start: number): number {
   return secondEnd;
 }
 
+/** True when the whole string is a skill/role label, using the parser's scanner. */
+export function isLabel(label: string): boolean {
+  return label.length > 0 && scanLabel(label, 0) === label.length;
+}
+
+/** True when the whole string is a tool label, including an incomplete chain. */
+export function isToolLabel(label: string): boolean {
+  return label.length > 0 && scanTool(label, 0) === label.length;
+}
+
 /** Parse every triggered mention and the code ranges that suppress them. */
 export function parse(
   text: string,
@@ -179,4 +189,18 @@ export function parse(
 /** True when `rest` may follow a resolved prefix without eating a word character. */
 export function isPunctuationOnly(rest: string): boolean {
   return rest.length === 0 || PUNCTUATION_ONLY.test(rest);
+}
+
+/**
+ * The end of the mention token that starts at `start`, using the same scanners as
+ * `parse`. The picker uses it to replace a whole token even when the cursor sits
+ * in the middle of the label.
+ */
+export function scanMentionEnd(
+  text: string,
+  start: number,
+  tokenClass: Exclude<TriggerSpec["class"], "path">,
+): number {
+  const labelStart = start + 1;
+  return tokenClass === "tool" ? scanTool(text, labelStart) : scanLabel(text, labelStart);
 }

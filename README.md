@@ -3,9 +3,10 @@
 Mention-aware prompt editor for pi. `$` names a skill, `%` names a tool, `&`
 names an agent role, and `@` paths and URLs are coloured while you type.
 
-> **Status:** the editor colour layer is live. `$` skills, `%` tools, `&` agent
-> roles, `@` paths and URLs are coloured while typing; autocomplete and
-> expansion land next. See the [map issue](https://github.com/jennymaeleidig/pi-mention/issues/1).
+> **Status:** the editor colour layer and the `$`, `%`, `&` picker are live.
+> `$` skills, `%` tools, `&` agent roles, `@` paths and URLs are coloured while
+> typing, and autocomplete inserts the short label with Tab or Enter; expansion
+> remains. See the [map issue](https://github.com/jennymaeleidig/pi-mention/issues/1).
 
 ## Colours
 

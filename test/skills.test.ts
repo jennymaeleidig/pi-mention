@@ -13,12 +13,25 @@ test("skills come from pi's skill commands and keep their short label", () => {
         sourceInfo: { path: "/skills/review/SKILL.md" },
       },
       { name: "review", source: "extension", sourceInfo: { path: "/ext/review.ts" } },
+      {
+        name: "skill:deploy",
+        source: "skill",
+        description: "Deploy the project",
+        sourceInfo: { path: "/project/skills/deploy/SKILL.md", scope: "project" },
+      },
     ],
   } as unknown as ExtensionAPI;
 
   assert.deepEqual(skillCatalog(pi), [
     { class: "skill", label: "tdd", name: "skill:tdd" },
     { class: "skill", label: "code-review", name: "skill:code-review" },
+    {
+      class: "skill",
+      label: "deploy",
+      name: "skill:deploy",
+      description: "Deploy the project",
+      scope: "project",
+    },
   ]);
 });
 

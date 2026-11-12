@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { installAutocomplete } from "./autocomplete.ts";
 import { pathCatalog } from "./catalogs/paths.ts";
 import { roleCatalog } from "./catalogs/roles.ts";
 import { skillCatalog } from "./catalogs/skills.ts";
@@ -26,6 +27,7 @@ export function register(pi: ExtensionAPI): void {
       roles: roleCatalog(ctx.cwd),
       paths,
     };
+    installAutocomplete(ctx.ui, settings, () => catalogs);
     installEditorColours(ctx.ui, spansForLinesFactory(catalogs, settings), (requestRender) =>
       paths.setOnChange(requestRender),
     );

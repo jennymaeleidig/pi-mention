@@ -30,6 +30,8 @@ src/core/            no pi imports, no I/O
   expand.ts          message + resolved + config -> expanded message
   colors.ts          text + resolved + config -> colour spans
   paint.ts           one rendered row + spans -> insertion-only ANSI
+  picker.ts          trigger token + ranking
+  selection.ts       picker class and selection history shape
   settings.ts        raw object -> settings + diagnostics
   types.ts           Mention, Target, ResolvedMention, ColourSpan, Settings
 
@@ -40,6 +42,7 @@ src/pi/              the only code that knows pi
   editor.ts          decorate-only editor wrapper
   colours.ts         parse + resolve + URLs -> per-line colour spans
   autocomplete.ts    one provider wrapper owning $, %, &
+  history.ts         picker selection store for frecency
   settings.ts        read pi.getSettings().piMention
   catalogs/
     skills.ts        pi.getCommands() skill entries

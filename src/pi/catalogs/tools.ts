@@ -40,7 +40,9 @@ export function toolCatalog(pi: ExtensionAPI): Target[] {
     for (const tool of pi.getAllTools()) {
       if (!reachable(tool, active)) continue;
       const label = labelOf(tool);
-      byLabel.set(label, { class: "tool", label, name: tool.name });
+      const target: Target = { class: "tool", label, name: tool.name };
+      if (tool.description) target.description = tool.description;
+      byLabel.set(label, target);
     }
     return [...byLabel.values()];
   } catch {

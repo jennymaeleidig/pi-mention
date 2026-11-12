@@ -48,3 +48,15 @@ test("an active deferred tool is direct", () => {
     ["mcp__kagi__search"],
   );
 });
+
+test("a tool keeps its description beside its registered name", () => {
+  const read = { ...tool("read", "direct"), description: "Read a file" };
+  const pi = {
+    getAllTools: () => [read],
+    getActiveTools: () => ["read"],
+  } as unknown as ExtensionAPI;
+
+  assert.deepEqual(toolCatalog(pi), [
+    { class: "tool", label: "read", name: "read", description: "Read a file" },
+  ]);
+});

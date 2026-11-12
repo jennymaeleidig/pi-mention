@@ -31,6 +31,8 @@ export interface Target {
   name?: string;
   /** Human description, when the catalog has one. */
   description?: string;
+  /** Where the target came from, when the catalog knows: pi's source scope. */
+  scope?: "user" | "project" | "temporary";
 }
 
 export type Resolution = "resolved" | "unresolved" | "excluded";
