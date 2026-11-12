@@ -135,8 +135,10 @@ What `ToolInfo` does **not** carry, although `ToolDefinition` does:
   catalog sees `definition.description`, the original.
 
 `getToolDefinition(name)` exists on `AgentSession` (`agent-session.js:1169-1171`) but is
-**not** on `ExtensionAPI`. Neither is `getCallableToolNames()`. `getAllTools()` is the
-whole public surface for tool metadata.
+**not** on `ExtensionAPI`. Neither is `getCallableToolNames()`. For an extension that is
+not itself an orchestrating tool, `getAllTools()` is the whole public surface for tool
+metadata; `prepareLoadout` is the only other public view, and it requires registering an
+active tool ([§4.5](#45-the-output-half-is-not-available)).
 
 `getAllTools()` returns every configured tool, including `hidden` ones, subject to
 `--tools` / `--exclude-tools` filtering (`agent-session.js:1197-1203`, `2966-3022`).
