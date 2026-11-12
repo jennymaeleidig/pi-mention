@@ -112,9 +112,17 @@ _Avoid_: Function, capability, action
 The identifier the model must use to call a tool.
 _Avoid_: Tool name, full name, canonical name
 
+**Tool block**:
+The appended `<tool_mentions>` section that carries each tool's reach and signature.
+_Avoid_: Mention block, prompt nudge, hint block
+
 **Agent role**:
 A named agent definition that the `subagent` tool can dispatch.
 _Avoid_: Agent, subagent, profile
+
+**Dispatch prefix**:
+The text that replaces a leading role mention and tells the model to call `subagent`.
+_Avoid_: Nudge, wrapper, prompt prefix
 
 **Subagent**:
 The child agent a role is dispatched into.
