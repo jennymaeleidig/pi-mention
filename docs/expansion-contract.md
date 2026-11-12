@@ -58,9 +58,9 @@ trimmed. If no prose remains, the block stands alone.
   it untouched: it never builds a second block or rewrites the restored one.
 - The mention's position in the prose is lost; the skill row always comes first.
 - Normalize CRLF, strip frontmatter, trim.
-- If the skill name or path contains `"`, or the body contains a line
-  `</skill>`, do not build the block: leave the mention literal and notify once
-  when there is a UI.
+- If the skill name or path contains a `"` or a newline, or the body contains a
+  line `</skill>`, do not build the block: leave the mention literal and notify
+  once when there is a UI.
 - The transcript shows Pi's collapsed `[skill] name (ctrl+o to expand)` row,
   followed by the hoisted prose.
 

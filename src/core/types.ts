@@ -91,7 +91,7 @@ export interface ExpandedMessage {
   skillFailure?: SkillFailure;
 }
 
-/** A range to paint with one theme foreground role. */
+/** A range to paint with one foreground theme token. */
 export interface ColourSpan extends Range {
   role: string;
 }

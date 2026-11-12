@@ -22,9 +22,10 @@ pi-mention adds two things to pi's prompt editor:
 picker finds the file and adds it to the prompt, and pi-mention only colours
 the token. URLs are colour-only and are never expanded.
 
-A mention is a trigger followed by a label, with no closing delimiter (the
-quoted path form adds a closing quote): `$tdd`, `@src/index.ts`, `%read`,
-`%kagi:kagi_search_fetch`, `&general`.
+A triggered mention is a trigger followed by a label, with no closing
+delimiter (the quoted path form adds a closing quote): `$tdd`, `@src/index.ts`,
+`%read`, `%kagi:kagi_search_fetch`, `&general`. A URL is detected without a
+trigger and is never expanded: `https://example.com`.
 
 ## Install
 
@@ -35,8 +36,19 @@ quoted path form adds a closing quote): `$tdd`, `@src/index.ts`, `%read`,
 - Optional: `pi-zentui` 0.34.0 and `pi-vim-editor` 0.10.0 if you use them.
   Those are the versions in the compatibility matrix.
 
-This package is installed from a local checkout. It is not published to npm, so
-`npm:pi-mention` will not resolve.
+This package is installed from git or a local checkout. It is not published to
+npm. Do not install `npm:pi-mention`: that name belongs to an unrelated package
+([jack1582/pi-mention](https://github.com/jack1582/pi-mention)), not this
+extension.
+
+### From git
+
+```sh
+pi install git:github.com/jennymaeleidig/pi-mention
+```
+
+pi clones the repository into its package directory and installs the package's
+dependencies. Add `@<ref>` to pin a tag or commit.
 
 ### From a local checkout
 
@@ -91,22 +103,23 @@ refuses to produce a half-painted frame.
 
 ## Token classes
 
-There are five token classes: skill, path, tool, agent role and URL. A tool
-label may carry a server segment, which is still the tool class.
+There are five token classes: skill, path, tool, agent role and URL. A quoted
+path is a path form, and a server tool is a tool form; both stay in their token
+class.
 
-| Token class | Trigger | Example                   | Coloured as  | Expands at         | Transcript vs expanded message                                                                                                                |
-| ----------- | ------- | ------------------------- | ------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Skill       | `$`     | `$tdd`                    | skill colour | `input`            | Transcript: pi's `[skill] tdd` row. Expanded: the canonical `<skill>` block, then any remaining prose.                                        |
-| Path        | `@`     | `@src/index.ts`           | path colour  | never              | Both keep `@src/index.ts`; pi core's file handling adds the file to the prompt.                                                               |
-| Quoted path | `@`     | `@"my notes/today.md"`    | path colour  | never              | Same as path; this is the form for a path containing spaces.                                                                                  |
-| Tool        | `%`     | `%read`                   | tool colour  | `context`          | Transcript keeps `%read`. Expanded: `` `read` `` inline, plus one `<tool_mentions>` block after the prose.                                    |
-| Server tool | `%`     | `%kagi:kagi_search_fetch` | tool colour  | `context`          | Same as tool. An indirect server tool is mentionable only while `codemode` is active; the model is told to reach it inside a codemode script. |
-| Agent role  | `&`     | `&general`                | role colour  | `context`, leading | Transcript keeps `&general`. Expanded: a `[subagent dispatch: role "general"]` prefix, then the task.                                         |
-| URL         | none    | `https://example.com`     | URL colour   | never              | Both keep the URL literal.                                                                                                                    |
+| Token class | Form        | Trigger | Example                   | Coloured as  | Expands at         | Transcript vs expanded message                                                                                                                |
+| ----------- | ----------- | ------- | ------------------------- | ------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Skill       | Skill       | `$`     | `$tdd`                    | skill colour | `input`            | Transcript: pi's `[skill] tdd` row. Expanded: the canonical `<skill>` block, then any remaining prose.                                        |
+| Path        | Path        | `@`     | `@src/index.ts`           | path colour  | never              | Both keep `@src/index.ts`; pi core's file handling adds the file to the prompt.                                                               |
+| Path        | Quoted path | `@`     | `@"my notes/today.md"`    | path colour  | never              | Same as path; this is the form for a path containing spaces.                                                                                  |
+| Tool        | Tool        | `%`     | `%read`                   | tool colour  | `context`          | Transcript keeps `%read`. Expanded: `` `read` `` inline, plus one `<tool_mentions>` block after the prose.                                    |
+| Tool        | Server tool | `%`     | `%kagi:kagi_search_fetch` | tool colour  | `context`          | Same as tool. An indirect server tool is mentionable only while `codemode` is active; the model is told to reach it inside a codemode script. |
+| Agent role  | Agent role  | `&`     | `&general`                | role colour  | `context`, leading | Transcript keeps `&general`. Expanded: a `[subagent dispatch: role "general"]` prefix, then the task.                                         |
+| URL         | URL         | none    | `https://example.com`     | URL colour   | never              | Both keep the URL literal.                                                                                                                    |
 
 The default colour keys render on `monokai-pro` as purple skills, cyan paths,
 orange tools, green roles, pink URLs, yellow unresolved mentions and dim
-excluded targets. The values are pi theme foreground role names, not fixed RGB
+excluded targets. The values are foreground theme-token names, not fixed RGB
 values, so they follow the active theme.
 
 Colour tells you what the resolver found. A mention with no target is
@@ -322,7 +335,7 @@ not configurable; a `triggers.path` key is ignored.
 - A malformed section (for example `"colors": "bright"`) falls back to that
   section's defaults and produces one diagnostic. A malformed `piMention`
   value (not an object) falls back to all defaults with one diagnostic.
-- A colour value must be a pi foreground theme role name. Background tokens
+- A colour value must be a foreground theme-token name. Background tokens
   such as `userMessageBg`, unknown names and non-strings are invalid for a
   colour key; that key falls back with a diagnostic.
 - Triggers are validated together. Each must be one character, not whitespace,
@@ -378,12 +391,12 @@ Empty-query ordering is:
 - `alphabetical`: label A–Z, then catalog order.
 - `sourceOrder`: catalog order.
 
-Pinned entries always come first. For an empty query they follow the order in
-`ranking.pinned`; with a non-empty query, fuzzy relevance orders them like
-every other tier. In both cases, fuzzy relevance decides the order inside each
-tier rather than `ranking.strategy`. With `projectSkillsFirst`, project skills
-form a tier ahead of user skills in the skill picker, and expansion uses the
-project copy when both scopes define the same label.
+Pinned entries always come first, in `ranking.pinned` order. An empty query
+orders the remaining entries by `ranking.strategy`. A non-empty query orders
+them by fuzzy relevance through `orderMatches` instead, keeping pinned entries
+first and preserving the project-first tier. With `projectSkillsFirst`, project
+skills form a tier ahead of user skills in the skill picker, and expansion uses
+the project copy when both scopes define the same label.
 
 Accepting an item records one selection. The store is:
 
@@ -432,8 +445,9 @@ defaults guarantee the three triggers stay distinct.
   transcript keeps typed `%tool` and `&role` tokens, and shows pi's native skill
   row for a skill.
 - **`@` is not expanded.** pi core's picker finds the file and adds it to the
-  prompt; pi-mention never reads or inlines a path. A path containing spaces
-  needs the quoted form `@"…"`, which is also colour-only.
+  prompt; pi-mention never reads or inlines a path's contents, and it stats the
+  path only to decide its colour. A path containing spaces needs the quoted form
+  `@"…"`, which is also colour-only.
 - **Code is inert.** Fenced code blocks and inline code are not coloured, not
   completed and not expanded, and URLs inside them are not detected.
 - **Unresolved and excluded stay literal.** There is no partial expansion. A
@@ -450,9 +464,9 @@ defaults guarantee the three triggers stay distinct.
   `codemode` is active.
 - **Roles are leading-only.** A mid-sentence or later `&role` stays literal.
   Role files are read once per extension instance; add a role, then `/reload`.
-- **No subagent profiles.** Only agent roles found in the user and project
-  `agents/` directories are targets. A model/thinking profile is never a
-  mention target.
+- **No subagent profiles.** Only agent roles found in `~/.pi/agent/agents/*.md`
+  and `<cwd>/.pi/agents/*.md` are targets; project roles overwrite user roles
+  with the same name. A model/thinking profile is never a mention target.
 - **No URL validation.** Explicit `http:`, `https:`, `ftp:` and `mailto:` URLs
   colour; fuzzy bare hosts are filtered by `url.sourceExtensions`. Nothing
   checks reachability, and a URL never expands.
@@ -472,8 +486,10 @@ npm run format
 ```
 
 The suite uses the Node test runner: pure grammar, resolver, expansion, colour,
-paint, picker and settings tests, plus one wiring smoke test with a fake
-`ExtensionAPI`. There is no browser and no live pi session in the unit suite.
+paint, picker and settings tests; editor-frame and history tests; and catalog
+tests for skills, paths, tools and roles. There is also one wiring smoke test
+with a fake `ExtensionAPI`. There is no browser and no live pi session in the
+unit suite.
 
 ## Documentation
 

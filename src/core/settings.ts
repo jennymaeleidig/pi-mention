@@ -212,7 +212,7 @@ function readColours(raw: RawObject, diagnostics: Diagnostic[]): ColourSettings 
       diagnostics.push(
         fallbackDiagnostic(
           `piMention.colors.${key}`,
-          "must be a pi foreground theme role name",
+          "must be a pi foreground theme-token name",
           JSON.stringify(DEFAULT_SETTINGS.colors[key]),
         ),
       );
