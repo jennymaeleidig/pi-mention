@@ -32,7 +32,8 @@ src/core/            no pi imports, no I/O
   skill-expand.ts    $ skill block builder and input seam
   context-expand.ts  message-level context seam: % tool, & role, escapes
   target.ts          target identity and history lookup
-  colors.ts          text + resolved + config -> colour spans
+  document.ts        text + catalogs + url detector -> spans and lines
+  colors.ts          resolved mentions -> colour spans
   paint.ts           one rendered row + spans -> insertion-only ANSI
   picker.ts          trigger token + ranking
   selection.ts       picker class and selection history shape
@@ -46,7 +47,7 @@ src/pi/              the only code that knows pi
   input.ts           $ skill transform
   context.ts         % and & expansion
   editor.ts          decorate-only editor wrapper
-  colours.ts         parse + resolve + URLs -> per-line colour spans
+  colours.ts         colour memo + URL detector adapter
   autocomplete.ts    one provider wrapper owning $, %, &
   history.ts         picker selection store for frecency
   settings.ts        read pi.getSettings().piMention
@@ -79,6 +80,10 @@ expandSkill(message: string, resolved: ResolvedMention[],
 expandContextMessages(messages: ContextMessage[], catalogs: Catalogs,
                       config: Settings) -> ContextMessage[] | undefined
 
+mentionDocument(text: string, catalogs: Catalogs, config: Settings,
+                options: { detectUrls: UrlDetector })
+  -> { spans: ColourSpan[]; lines: ColourSpan[][] }
+
 colourSpans(text: string, resolved: ResolvedMention[], config: Settings)
   -> ColourSpan[]
 
@@ -103,6 +108,14 @@ instruction. Mid-sentence, later, unresolved and excluded mentions stay
 literal, and no role body is read or inlined. `ToolReach` is `direct` or
 `indirect`, and `targetKey` keeps the block, the adapter and the catalog
 agreeing on identity and first-occurrence order.
+
+`mentionDocument` is the colour seam's one interface. It owns parsing, path
+probing through `pathCandidates`, resolution, URL mentions, span validation and
+line projection. `UrlDetector` is an input, so linkify and tlds stay behind the
+pi adapter while the composed result is tested in core. `colourSpans` drops
+spans outside the text. The pi memo keys on text, path version, tool version,
+settings and the Catalog set, so a landing probe or a new tool recolours the
+same text.
 
 `catalogs` is plain data built by the adapters. `createSessionCatalogs` constructs
 the one live Catalog set per extension instance: live skill and tool getters, the
@@ -239,7 +252,8 @@ Node test runner, no browser and no live pi session in the unit suite.
 
 - Golden tests for every grammar example and every row of the expansion table.
 - Pure `colourSpans` and `paintRow` tests, including cursor-grapheme handling
-  and escape preservation.
+  and escape preservation, plus a composed `mentionDocument` test for spans,
+  lines and path probes.
 - Fixture-driven catalog tests, one per target class, plus adapter suites for
   input, context, autocomplete, history, editor framing, catalog wiring and the
   one session Catalog construction.
