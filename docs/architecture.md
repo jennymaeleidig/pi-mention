@@ -28,10 +28,14 @@ No bundler. No second package for colours.
 ```text
 src/core/            no pi imports, no I/O
   grammar.ts         parse: mentions, spans, code ranges
-  resolve.ts         label + catalog -> target
-  expand.ts          message + resolved + catalogs -> expanded text and blocks
-  colors.ts          text + resolved + config -> colour spans
+  resolve.ts         label + catalog -> target, path candidate order
+  skill-expand.ts    $ skill block builder and input seam
+  context-expand.ts  message-level context seam: % tool, & role, escapes
+  target.ts          target identity and history lookup
+  document.ts        text + catalogs + url detector -> spans and lines
+  colors.ts          resolved mentions -> colour spans
   paint.ts           one rendered row + spans -> insertion-only ANSI
+  frame.ts           rendered-frame proof and row painting
   picker.ts          trigger token + ranking
   selection.ts       picker class and selection history shape
   settings.ts        raw object -> settings + diagnostics
@@ -40,10 +44,11 @@ src/core/            no pi imports, no I/O
 
 src/pi/              the only code that knows pi
   index.ts           registration and wiring
+  session-catalogs.ts one live Catalog set per extension instance
   input.ts           $ skill transform
   context.ts         % and & expansion
-  editor.ts          decorate-only editor wrapper
-  colours.ts         parse + resolve + URLs -> per-line colour spans
+  editor.ts          port probe, border capture, zentui/vim detection
+  colours.ts         colour memo + URL detector adapter
   autocomplete.ts    one provider wrapper owning $, %, &
   history.ts         picker selection store for frecency
   settings.ts        read pi.getSettings().piMention
@@ -56,7 +61,7 @@ src/pi/              the only code that knows pi
 
 src/index.ts         default extension entry
 test/                core fixtures + adapter suites (input, context,
-                     autocomplete, history, editor-frame, catalogs)
+                     autocomplete, history, frame/editor, catalogs)
                      + one wiring smoke test
 ```
 
@@ -70,53 +75,63 @@ parse(text: string, specs: TriggerSpec[]) -> { mentions: Mention[]; codeRanges: 
 
 resolve(mentions: Mention[], catalogs: Catalogs, config: Settings) -> ResolvedMention[]
 
-expand(message: string, resolved: ResolvedMention[],
-       options?: ExpandOptions) -> ExpandedMessage
+expandSkill(message: string, resolved: ResolvedMention[],
+            options?: ExpandOptions) -> ExpandedMessage
 
-expandTools(message: string, resolved: ResolvedMention[], catalogs: Catalogs,
-            options?: ExpandToolsOptions) -> ExpandedMessage
+expandContextMessages(messages: ContextMessage[], catalogs: Catalogs,
+                      config: Settings) -> ContextMessage[] | undefined
 
-expandRoles(message: string, resolved: ResolvedMention[], catalogs: Catalogs)
-  -> ExpandedMessage
-
-toolBlockEntries(message: string, resolved: ResolvedMention[], catalogs: Catalogs)
-  -> Target[]
-
-toolBlockText(entries: Target[]) -> string
+mentionDocument(text: string, catalogs: Catalogs, config: Settings,
+                options: { detectUrls: UrlDetector })
+  -> { spans: ColourSpan[]; lines: ColourSpan[][] }
 
 colourSpans(text: string, resolved: ResolvedMention[], config: Settings)
   -> ColourSpan[]
+
+paintFrame(options: PaintFrameOptions) -> string[]
 
 loadSettings(raw: unknown) -> { settings: Settings; diagnostics: Diagnostic[] }
 ```
 
 `ExpandedMessage` carries the expanded `text`, the native `skillBlock` when the
 input seam built one, and a `skillFailure` when a resolved skill could not
-become a block. `ExpandOptions.skillSource` is the adapter-supplied lookup for a
-resolved skill's `SkillSource` (location, base directory and frontmatter-stripped
-body); expansion itself never reads a file. The optional source keeps the seam
-pure while the pi adapter owns the I/O.
+become a block. A pathless skill stays in the color and picker catalogs but has
+no SKILL.md to read; the input seam treats it as unresolved and leaves it
+literal without a notice. `ExpandOptions.skillSource` is the adapter-supplied
+lookup for a resolved skill's `SkillSource` (location, base directory and
+frontmatter-stripped body); expansion itself never reads a file. The optional
+source keeps the seam pure while the pi adapter owns the I/O.
 
-`expandTools` is the context seam's pure expander. It replaces every eligible
-`%tool` mention inline with the registered name and appends one
-`<tool_mentions>` block in first-occurrence order. `toolBlockEntries` computes
-the distinct targets a message contributes, and `toolBlockText` renders the
-block; the context adapter uses the two halves to put one block after the last
-text part of a multi-part message. `ToolReach` is `direct` or `indirect`, and
-`targetKey` and `dedupeToolTargets` keep the block, the adapter and the catalog
+`expandContextMessages` is the context seam's one interface. It owns per-part
+expansion, the leading-role rule, one `<tool_mentions>` block after the last
+text part of a message, first-occurrence deduplication, model-facing
+unescaping and change detection. It returns `undefined` when nothing changed,
+so the adapter can return no event result. Tool mentions expand inline to the
+registered name; a resolved leading role becomes the dispatch prefix, and a
+role with only whitespace and punctuation after it gets the no-task
+instruction. Mid-sentence, later, unresolved and excluded mentions stay
+literal, and no role body is read or inlined. `ToolReach` is `direct` or
+`indirect`, and `targetKey` keeps the block, the adapter and the catalog
 agreeing on identity and first-occurrence order.
 
-`expandRoles` is the context seam's leading-only role expander. It replaces the
-first non-whitespace `&role` prose token, after any native skill block, with the
-dispatch prefix and leaves the rest as the task; a role with only whitespace and
-punctuation after it gets the no-task instruction instead. Mid-sentence, later,
-unresolved and excluded roles stay literal, and no role body is read or inlined.
+`mentionDocument` is the colour seam's one interface. It owns parsing, path
+probing through `pathCandidates`, resolution, URL mentions, span validation and
+line projection. `UrlDetector` is an input, so linkify and tlds stay behind the
+pi adapter while the composed result is tested in core. `colourSpans` drops
+spans outside the text. The pi memo reads its Catalogs and settings through a
+source callback and keys on both references, plus text, path version and tool
+version, so a landing probe, a new tool, a new Catalog set or new settings
+recolours the same text.
 
-`catalogs` is plain data built by the adapters. `resolve` itself does no I/O,
-registers nothing, activates a tool, or edits the prompt's tool section. Paths
-are the one catalog backed by the filesystem: `paths.has` is a pure cache read,
-and `paths.probe` is the explicit I/O edge the colour adapter calls before
-typing a path token. A probe dedupes in-flight stats, caches both hits and
+`catalogs` is plain data built by the adapters. `createSessionCatalogs` constructs
+the one live Catalog set per extension instance: live skill and tool getters, the
+cached role catalog, the filesystem-backed path catalog and the tool revision.
+The input, context, colour and picker seams read that set; no seam rebuilds a
+partial `Catalogs` with stubbed fields. `resolve` itself does no I/O, registers
+nothing, activates a tool, or edits the prompt's tool section. Paths are the one
+catalog backed by the filesystem: `paths.has` is a pure cache read, and
+`paths.probe` is the explicit I/O edge the colour adapter calls before typing a
+path token. A probe dedupes in-flight stats, caches both hits and
 misses with a timestamp, and revalidates after a short TTL (one second by
 default) so a file that appears later can become a hit. The picker and colour
 layer read `catalogs.tools` through a live getter, so a tool that appears
@@ -194,8 +209,11 @@ The extension reads one top-level key:
 - `typebox` validates the `piMention` object in code; there is no checked-in
   `config.schema.json`.
 
-`loadSettings` validates the effective object. An invalid value falls back to
-the code default for that key and produces one diagnostic; diagnostics are
+`loadSettings` validates the effective object. One field table holds each
+leaf's default, schema, fallback requirement and fallback wording;
+`DEFAULT_SETTINGS` is derived from that table, and the table is checked against
+`Settings` at compile time. An invalid value falls back to the code default for
+that key and produces one diagnostic; diagnostics are
 notified at every `session_start`. A malformed `piMention` value (not an object)
 falls back to all defaults with one diagnostic. A malformed section (for
 example `"colors": "bright"`) falls back to that section's defaults with one
@@ -243,12 +261,16 @@ Node test runner, no browser and no live pi session in the unit suite.
 
 - Golden tests for every grammar example and every row of the expansion table.
 - Pure `colourSpans` and `paintRow` tests, including cursor-grapheme handling
-  and escape preservation.
+  and escape preservation, plus a composed `mentionDocument` test for spans,
+  lines and path probes.
 - Fixture-driven catalog tests, one per target class, plus adapter suites for
-  input, context, autocomplete, history, editor framing and catalog wiring.
+  input, context, autocomplete, history, catalog wiring and the one session
+  Catalog construction. The editor frame has a pure `paintFrame` suite and a
+  fake-editor suite that drives the real `installEditorColours` seam.
 - A colour-memo test that a live tool appearing mid-session recolours the same
   text, and path-catalog tests for the pure cache read and TTL revalidation.
-- Settings validation tests, including per-key fallback and diagnostics.
+- Settings validation tests, including per-key fallback and diagnostics, plus a
+  test that the README's complete example equals the code defaults.
 - One wiring smoke test with a fake `ExtensionAPI` that drives the real
   registration.
 

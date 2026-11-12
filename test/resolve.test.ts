@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parse, type TriggerSpec } from "../src/core/grammar.ts";
-import { resolve } from "../src/core/resolve.ts";
+import { pathCandidates, resolve } from "../src/core/resolve.ts";
 import { defaultSettings } from "../src/core/settings.ts";
 import type { Catalogs, Settings } from "../src/core/types.ts";
 
@@ -27,7 +27,7 @@ const catalogs: Catalogs = {
     },
   ],
   roles: [{ class: "role", label: "general" }],
-  paths: { has: (label) => paths.has(label) },
+  paths: { has: (label) => paths.has(label), probe: () => {} },
 };
 
 function resolveText(text: string, settings: Settings = defaultSettings()) {
@@ -35,7 +35,12 @@ function resolveText(text: string, settings: Settings = defaultSettings()) {
   return resolve(mentions, catalogs, settings);
 }
 
-test("a resolving mention is narrowed to the longest eligible prefix", () => {
+test("path candidates are the full label followed by punctuation-only prefixes", () => {
+  assert.deepEqual(pathCandidates("a.b.."), ["a.b..", "a.b.", "a.b"]);
+  assert.deepEqual(pathCandidates("src/foo.ts"), ["src/foo.ts"]);
+});
+
+test("a resolving path mention is narrowed to the longest eligible prefix", () => {
   const [resolved] = resolveText("$tdd?");
   assert.equal(resolved?.status, "resolved");
   assert.equal(resolved?.mention.span.end, 4);

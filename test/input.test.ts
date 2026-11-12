@@ -11,6 +11,7 @@ import {
   type InputEventResult,
 } from "@earendil-works/pi-coding-agent";
 import { installSkillInput } from "../src/pi/input.ts";
+import { createSessionCatalogs } from "../src/pi/session-catalogs.ts";
 import { defaultSettings } from "../src/core/settings.ts";
 import type { Settings } from "../src/core/types.ts";
 
@@ -19,7 +20,7 @@ type Handler = (event: InputEvent, ctx: ExtensionContext) => Promise<InputEventR
 interface Command {
   name: string;
   source: "skill";
-  sourceInfo: { path: string; scope?: "user" | "project"; baseDir?: string };
+  sourceInfo: { path?: string; scope?: "user" | "project"; baseDir?: string };
 }
 
 function setup(commands: () => Command[], settings: Settings = defaultSettings()) {
@@ -32,7 +33,7 @@ function setup(commands: () => Command[], settings: Settings = defaultSettings()
     getCommands: commands,
   } as unknown as ExtensionAPI;
 
-  installSkillInput(pi, settings);
+  installSkillInput(pi, settings, createSessionCatalogs(pi, settings, { cwd: process.cwd() }));
 
   return async (
     text: string,
@@ -192,6 +193,14 @@ test("print, JSON and RPC modes transform without crashing", async () => {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("a pathless skill stays literal without a failure notice", async () => {
+  const run = setup(() => [{ name: "skill:tdd", source: "skill", sourceInfo: {} }]);
+  const { result, notifications } = await run("$tdd", { hasUI: true });
+
+  assert.deepEqual(result, { action: "continue" });
+  assert.deepEqual(notifications, []);
 });
 
 test("an existing native skill block stays untouched, even with a trigger in its body", async () => {

@@ -48,7 +48,7 @@ test("unresolved and excluded have distinct roles", () => {
 
 test("colour spans keep the resolved mention ranges", () => {
   const spans = colourSpans(
-    "abc",
+    "abcd",
     [
       {
         mention: { class: "skill", trigger: "$", label: "tdd", span: { start: 0, end: 4 } },
@@ -59,4 +59,29 @@ test("colour spans keep the resolved mention ranges", () => {
     settings,
   );
   assert.deepEqual(spans, [{ start: 0, end: 4, role: "syntaxNumber" }]);
+});
+
+test("spans outside the text are dropped", () => {
+  const spans = colourSpans(
+    "abc",
+    [
+      {
+        mention: { class: "skill", trigger: "$", label: "x", span: { start: -1, end: 2 } },
+        status: "resolved",
+        target: { class: "skill", label: "x" },
+      },
+      {
+        mention: { class: "tool", trigger: "%", label: "y", span: { start: 2, end: 9 } },
+        status: "resolved",
+        target: { class: "tool", label: "y" },
+      },
+      {
+        mention: { class: "role", trigger: "&", label: "z", span: { start: 1, end: 1 } },
+        status: "resolved",
+        target: { class: "role", label: "z" },
+      },
+    ],
+    settings,
+  );
+  assert.deepEqual(spans, []);
 });

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { DEFAULT_SETTINGS, FOREGROUND_ROLES, loadSettings } from "../src/core/settings.ts";
 import type { Diagnostic } from "../src/core/types.ts";
@@ -244,4 +245,13 @@ test("boolean and string fields validate individually", () => {
     "piMention.completionSuffix",
     "piMention.hideSlashSkills",
   ]);
+});
+
+test("the README's complete example is the code defaults", () => {
+  const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+  const block = readme.match(/### Complete example[\s\S]*?```jsonc\n([\s\S]*?)```/)?.[1];
+  assert.ok(block, "README has a JSONC complete example");
+
+  const stripped = block.replace(/^\s*\/\/.*$/gm, "").replace(/,\s*([}\]])/g, "$1");
+  assert.deepEqual(JSON.parse(stripped), { piMention: DEFAULT_SETTINGS });
 });

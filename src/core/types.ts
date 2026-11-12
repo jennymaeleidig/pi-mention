@@ -104,7 +104,7 @@ export interface Catalogs {
   /** Paths are the one catalog backed by the filesystem; `probe` starts I/O. */
   paths: {
     has(label: string): boolean;
-    probe?(label: string): void;
+    probe(label: string): void;
     readonly version?: number;
   };
   /** Bumped when the live tool catalog may have changed, so the colour memo refreshes. */

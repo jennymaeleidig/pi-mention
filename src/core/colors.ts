@@ -19,7 +19,7 @@ function roleFor(resolved: ResolvedMention, colors: ColourSettings): string {
 
 /** Map resolved mentions to paintable spans. Pure. */
 export function colourSpans(
-  _text: string,
+  text: string,
   resolved: readonly ResolvedMention[],
   settings: Settings,
 ): ColourSpan[] {
@@ -29,6 +29,6 @@ export function colourSpans(
       end: mention.mention.span.end,
       role: roleFor(mention, settings.colors),
     }))
-    .filter((span) => span.end > span.start)
+    .filter((span) => span.end > span.start && span.start >= 0 && span.end <= text.length)
     .sort((a, b) => a.start - b.start || a.end - b.end);
 }

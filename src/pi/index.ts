@@ -1,15 +1,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { installAutocomplete } from "./autocomplete.ts";
 import { installContextExpansion } from "./context.ts";
-import { pathCatalog } from "./catalogs/paths.ts";
-import { roleCatalog } from "./catalogs/roles.ts";
-import { skillCatalog } from "./catalogs/skills.ts";
-import { toolCatalog } from "./catalogs/tools.ts";
 import { spansForLinesFactory } from "./colours.ts";
 import { installEditorColours } from "./editor.ts";
 import { installSkillInput } from "./input.ts";
+import { createSessionCatalogs, type SessionCatalogs } from "./session-catalogs.ts";
 import { readSettings, settingsWarning, type LoadedSettings } from "./settings.ts";
-import type { Catalogs } from "../core/types.ts";
 
 /**
  * Register the extension's pi surface. This is the one place that talks to
@@ -26,22 +22,18 @@ export function register(pi: ExtensionAPI): void {
   let loaded: LoadedSettings | undefined;
   let seamsInstalled = false;
   let uiInstalled = false;
-  let toolRevision = 0;
+  let session: SessionCatalogs | undefined;
   let requestRender: (() => void) | undefined;
-
-  const toolsChanged = (): void => {
-    toolRevision++;
-    requestRender?.();
-  };
 
   pi.on("session_start", (_event, ctx) => {
     loaded ??= readSettings(pi);
     const { settings, diagnostics } = loaded;
+    const current = (session ??= createSessionCatalogs(pi, settings, { cwd: ctx.cwd }));
 
     if (!seamsInstalled) {
       seamsInstalled = true;
-      installSkillInput(pi, settings);
-      installContextExpansion(pi, settings, { cwd: ctx.cwd });
+      installSkillInput(pi, settings, current);
+      installContextExpansion(pi, settings, current.catalogs);
     }
 
     if (diagnostics.length > 0) {
@@ -53,31 +45,21 @@ export function register(pi: ExtensionAPI): void {
 
     // A server that connects or a tool that becomes active changes the live
     // catalog; bump the revision so the colour memo recomputes the same text.
-    pi.on("mcp_servers_change", () => {
-      toolsChanged();
-    });
-    pi.on("tool_execution_end", () => {
-      toolsChanged();
-    });
-
-    const paths = pathCatalog(ctx.cwd);
-    const catalogs: Catalogs = {
-      skills: skillCatalog(pi),
-      // Read live, so a tool or server that appears mid-session reaches the
-      // picker and colours without waiting for a session restart.
-      get tools() {
-        return toolCatalog(pi);
-      },
-      get toolsVersion() {
-        return toolRevision;
-      },
-      roles: roleCatalog(ctx.cwd),
-      paths,
+    const toolsChanged = (): void => {
+      current.markToolsChanged();
+      requestRender?.();
     };
-    installAutocomplete(ctx.ui, settings, () => catalogs);
-    installEditorColours(ctx.ui, spansForLinesFactory(catalogs, settings), (bind) => {
-      requestRender = bind;
-      paths.setOnChange(bind);
-    });
+    pi.on("mcp_servers_change", toolsChanged);
+    pi.on("tool_execution_end", toolsChanged);
+
+    installAutocomplete(ctx.ui, settings, () => current.catalogs);
+    installEditorColours(
+      ctx.ui,
+      spansForLinesFactory(() => ({ catalogs: current.catalogs, settings })),
+      (bind) => {
+        requestRender = bind;
+        current.setOnPathChange(bind);
+      },
+    );
   });
 }

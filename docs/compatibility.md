@@ -217,7 +217,7 @@ runs. Stock and zentui frames still take the strict path on both borders. The
 escape stripping now comes from `stripAnsi` in `src/core/paint.ts`, so the frame
 proof and painting share one escape grammar instead of two disagreeing regexes.
 
-A regression test in `test/editor-frame.test.ts` covers the labelled and
+A regression test in `test/frame.test.ts` and `test/editor.test.ts` covers the labelled and
 unlabelled bottom border, a moved label, a shorter border, a different-width
 frame, a label over non-dash content, two changed runs and the strict top
 border. `test/paint.test.ts` covers `stripAnsi` for CSI, OSC/APC and
@@ -233,11 +233,13 @@ the end of a token and mid-token.
 
 ## Checks
 
-- `npm test`: 174 passing (169 before the cursor-marker fix, plus 5 paint tests).
+- `npm test`: 205 passing (169 before the cursor-marker fix; 5 paint tests and 31 later tests).
 - `npm run typecheck`: clean.
 - `npm run format:check`: clean.
 
 ## Not verified
+
+- The interactive mention smoke checklist in [manual-smoke.md](./manual-smoke.md).
 
 - A live third-party model provider. Send-path verification used the local
   mock above; the seams and exact text were verified, not a provider's
