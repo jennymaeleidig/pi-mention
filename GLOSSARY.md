@@ -61,7 +61,7 @@ The rule that a trigger starts a mention only at a permitted position in the tex
 _Avoid_: Prefix rule, delimiter rule
 
 **Escape**:
-A character that suppresses a trigger so the text stays literal.
+A backslash that suppresses a trigger. The draft and message keep it; the expanded message drops it.
 _Avoid_: Quote, literal marker
 
 **Picker**:
@@ -97,8 +97,12 @@ The anchored text block that pi renders as its native skill row.
 _Avoid_: Skill entry, skill card, skill header
 
 **Path**:
-A filesystem path, named by a path label.
+A filesystem path, named by a path label. A path containing spaces uses the quoted form.
 _Avoid_: File, file mention, attachment
+
+**Quoted path**:
+A path label written as `@"..."` so it may contain spaces. Coloured, never expanded.
+_Avoid_: Quoted file, attachment string
 
 **Tool**:
 A tool the model can call, named by a tool label.
