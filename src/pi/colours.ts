@@ -1,6 +1,6 @@
 import { colourSpans } from "../core/colors.ts";
-import { isPunctuationOnly, parse, triggerSpecs } from "../core/grammar.ts";
-import { resolve } from "../core/resolve.ts";
+import { parse, triggerSpecs } from "../core/grammar.ts";
+import { pathCandidates, resolve } from "../core/resolve.ts";
 import type { Catalogs, ColourSpan, Mention, Settings } from "../core/types.ts";
 import { detectUrls } from "./catalogs/urls.ts";
 
@@ -8,12 +8,8 @@ import { detectUrls } from "./catalogs/urls.ts";
 function probePaths(mentions: readonly Mention[], catalogs: Catalogs): void {
   for (const mention of mentions) {
     if (mention.class !== "path") continue;
-    // Mirror `longestPath`: the full label, then every prefix whose remainder
-    // is punctuation only.
-    catalogs.paths.probe?.(mention.label);
-    for (let end = mention.label.length - 1; end > 0; end--) {
-      if (!isPunctuationOnly(mention.label.slice(end))) continue;
-      catalogs.paths.probe?.(mention.label.slice(0, end));
+    for (const candidate of pathCandidates(mention.label)) {
+      catalogs.paths.probe?.(candidate);
     }
   }
 }

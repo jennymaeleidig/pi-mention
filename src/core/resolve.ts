@@ -44,18 +44,29 @@ function longestEntry(label: string, entries: readonly Target[]): Target | undef
   return best;
 }
 
+/**
+ * The labels a path mention may resolve to, longest first: the whole label,
+ * then every prefix whose remainder is punctuation only.
+ *
+ * This is the one search order. Resolution picks the first hit; the colour
+ * adapter probes the same list.
+ */
+export function pathCandidates(label: string): string[] {
+  const candidates = [label];
+  for (let end = label.length - 1; end > 0; end--) {
+    if (!isPunctuationOnly(label.slice(end))) continue;
+    candidates.push(label.slice(0, end));
+  }
+  return candidates;
+}
+
 function longestPath(
   label: string,
   paths: Catalogs["paths"],
 ): { label: string; target: Target } | undefined {
-  if (paths.has(label)) {
-    return { label, target: { class: "path", label } };
-  }
-  for (let end = label.length - 1; end > 0; end--) {
-    const prefix = label.slice(0, end);
-    if (!isPunctuationOnly(label.slice(end))) continue;
-    if (paths.has(prefix)) {
-      return { label: prefix, target: { class: "path", label: prefix } };
+  for (const candidate of pathCandidates(label)) {
+    if (paths.has(candidate)) {
+      return { label: candidate, target: { class: "path", label: candidate } };
     }
   }
   return undefined;
