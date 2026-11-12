@@ -363,13 +363,13 @@ MCP server names are validated to `[A-Za-z0-9_-]+`
 (`MCP dist/config.js:18-27`; extension registrations call the same validator,
 `PI dist/core/extensions/loader.js:385-400`). For MCP, the namespace suffix is therefore
 exactly the sanitized server: the only replacement is `-` → `_`. That makes
-`namespace.name + "__"` a safe prefix for splitting a *registered MCP name* **when the
-hashed branch's 55-character truncation did not cut the server segment**. The branch
-keeps only the first 55
-characters, so a long server name (or a collision on a server name longer than about 48
-characters) can lose part of its own prefix; in that case fall back to the whole
-registered name. This is not a general rule for non-MCP namespaces, whose names/aliases are arbitrary; use the alias
-(or the name without an actual `mcp__` prefix) there and match defensively.
+`namespace.name + "__"` a safe prefix for splitting a *registered MCP name* **when
+the hashed branch's 55-character truncation did not cut the server segment**. The branch
+keeps only the first 55 characters, so a long server name (or a collision on a server
+name longer than about 48 characters) can lose part of its own prefix; in that case fall
+back to the whole registered name. This is not a general rule for non-MCP namespaces,
+whose names/aliases are arbitrary; use the alias (or the name without an actual `mcp__`
+prefix) there and match defensively.
 
 Non-MCP tools may have a namespace too; it is arbitrary. MCP resource tools
 (`list_mcp_resources`, `list_mcp_resource_templates`, `read_mcp_resource`) have **no**
