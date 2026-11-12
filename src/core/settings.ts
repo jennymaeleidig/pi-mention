@@ -9,52 +9,6 @@ import {
 import { Check } from "typebox/value";
 import type { ColourSettings, Diagnostic, Settings, TriggerSpec } from "./types.ts";
 
-/** Palette C from the accepted prototype. */
-export const DEFAULT_SETTINGS: Settings = {
-  triggers: { skill: "$", tool: "%", role: "&" },
-  completionSuffix: " ",
-  hideSlashSkills: true,
-  ranking: {
-    strategy: "frecency",
-    pinned: { skills: [], tools: [], roles: [] },
-    projectSkillsFirst: false,
-  },
-  exclude: { skills: [], tools: [], roles: [] },
-  colors: {
-    skill: "syntaxNumber",
-    tool: "accent",
-    role: "success",
-    path: "mdLinkUrl",
-    url: "mdLink",
-    unresolved: "warning",
-    excluded: "dim",
-  },
-  url: {
-    sourceExtensions: [
-      ".ts",
-      ".tsx",
-      ".js",
-      ".jsx",
-      ".md",
-      ".py",
-      ".sh",
-      ".json",
-      ".yaml",
-      ".yml",
-      ".toml",
-      ".rs",
-      ".go",
-      ".css",
-      ".html",
-    ],
-  },
-};
-
-/** A mutable copy, so callers cannot accidentally edit the defaults. */
-export function defaultSettings(): Settings {
-  return structuredClone(DEFAULT_SETTINGS);
-}
-
 type RawObject = Record<string, unknown>;
 
 function isObject(value: unknown): value is RawObject {
@@ -140,12 +94,285 @@ export const FOREGROUND_ROLES: ReadonlySet<string> = new Set([
   "bashMode",
 ]);
 
+function isColour(value: unknown): value is string {
+  return typeof value === "string" && FOREGROUND_ROLES.has(value);
+}
+
 type TriggerClass = Exclude<TriggerSpec["class"], "path">;
 const TRIGGER_CLASSES: readonly TriggerClass[] = ["skill", "tool", "role"];
 const NAME_KEYS = ["skills", "tools", "roles"] as const;
 const COLOUR_KEYS = ["skill", "tool", "role", "path", "url", "unresolved", "excluded"] as const;
 
-type NameLists = Settings["exclude"];
+/** One leaf field: its default, validator and fallback wording. */
+interface LeafSpec<T> {
+  property: string;
+  key: string;
+  schema?: TSchema;
+  validate?: (value: unknown) => boolean;
+  defaultValue: T;
+  requirement: string;
+  used: string;
+}
+
+function leaf<T>(
+  property: string,
+  key: string,
+  defaultValue: T,
+  schema: TSchema,
+  requirement: string,
+  used: string,
+): LeafSpec<T> {
+  return { property, key, defaultValue, schema, requirement, used };
+}
+
+function checkedLeaf<T>(
+  property: string,
+  key: string,
+  defaultValue: T,
+  validate: (value: unknown) => boolean,
+  requirement: string,
+  used: string,
+): LeafSpec<T> {
+  return { property, key, defaultValue, validate, requirement, used };
+}
+
+/** A table that mirrors `Settings`, leaf for leaf. */
+type LeafSpecsFor<T> = T extends readonly unknown[]
+  ? LeafSpec<T>
+  : T extends object
+    ? { [K in keyof T]: LeafSpecsFor<T[K]> }
+    : LeafSpec<T>;
+
+/**
+ * The single source for every settings leaf: its default, validation and
+ * fallback wording. `DEFAULT_SETTINGS` is derived from this table, so adding a
+ * key means adding one leaf here.
+ */
+const FIELDS = {
+  triggers: {
+    skill: checkedLeaf(
+      "skill",
+      "triggers.skill",
+      "$",
+      isTrigger,
+      'must be one character other than whitespace, "/", "@", "\\" or "`"',
+      JSON.stringify("$"),
+    ),
+    tool: checkedLeaf(
+      "tool",
+      "triggers.tool",
+      "%",
+      isTrigger,
+      'must be one character other than whitespace, "/", "@", "\\" or "`"',
+      JSON.stringify("%"),
+    ),
+    role: checkedLeaf(
+      "role",
+      "triggers.role",
+      "&",
+      isTrigger,
+      'must be one character other than whitespace, "/", "@", "\\" or "`"',
+      JSON.stringify("&"),
+    ),
+  },
+  completionSuffix: leaf(
+    "completionSuffix",
+    "completionSuffix",
+    " ",
+    STRING,
+    "must be a string",
+    JSON.stringify(" "),
+  ),
+  hideSlashSkills: leaf(
+    "hideSlashSkills",
+    "hideSlashSkills",
+    true,
+    BOOLEAN,
+    "must be a boolean",
+    String(true),
+  ),
+  ranking: {
+    strategy: leaf(
+      "strategy",
+      "ranking.strategy",
+      "frecency",
+      STRATEGY,
+      "must be one of frecency, recent, frequent, alphabetical or sourceOrder",
+      JSON.stringify("frecency"),
+    ),
+    pinned: {
+      skills: leaf(
+        "skills",
+        "ranking.pinned.skills",
+        [] as readonly string[],
+        STRING_ARRAY,
+        "must be an array of strings",
+        "an empty list",
+      ),
+      tools: leaf(
+        "tools",
+        "ranking.pinned.tools",
+        [] as readonly string[],
+        STRING_ARRAY,
+        "must be an array of strings",
+        "an empty list",
+      ),
+      roles: leaf(
+        "roles",
+        "ranking.pinned.roles",
+        [] as readonly string[],
+        STRING_ARRAY,
+        "must be an array of strings",
+        "an empty list",
+      ),
+    },
+    projectSkillsFirst: leaf(
+      "projectSkillsFirst",
+      "ranking.projectSkillsFirst",
+      false,
+      BOOLEAN,
+      "must be a boolean",
+      String(false),
+    ),
+  },
+  exclude: {
+    skills: leaf(
+      "skills",
+      "exclude.skills",
+      [] as readonly string[],
+      STRING_ARRAY,
+      "must be an array of strings",
+      "an empty list",
+    ),
+    tools: leaf(
+      "tools",
+      "exclude.tools",
+      [] as readonly string[],
+      STRING_ARRAY,
+      "must be an array of strings",
+      "an empty list",
+    ),
+    roles: leaf(
+      "roles",
+      "exclude.roles",
+      [] as readonly string[],
+      STRING_ARRAY,
+      "must be an array of strings",
+      "an empty list",
+    ),
+  },
+  colors: {
+    skill: checkedLeaf(
+      "skill",
+      "colors.skill",
+      "syntaxNumber",
+      isColour,
+      "must be a pi foreground theme-token name",
+      JSON.stringify("syntaxNumber"),
+    ),
+    tool: checkedLeaf(
+      "tool",
+      "colors.tool",
+      "accent",
+      isColour,
+      "must be a pi foreground theme-token name",
+      JSON.stringify("accent"),
+    ),
+    role: checkedLeaf(
+      "role",
+      "colors.role",
+      "success",
+      isColour,
+      "must be a pi foreground theme-token name",
+      JSON.stringify("success"),
+    ),
+    path: checkedLeaf(
+      "path",
+      "colors.path",
+      "mdLinkUrl",
+      isColour,
+      "must be a pi foreground theme-token name",
+      JSON.stringify("mdLinkUrl"),
+    ),
+    url: checkedLeaf(
+      "url",
+      "colors.url",
+      "mdLink",
+      isColour,
+      "must be a pi foreground theme-token name",
+      JSON.stringify("mdLink"),
+    ),
+    unresolved: checkedLeaf(
+      "unresolved",
+      "colors.unresolved",
+      "warning",
+      isColour,
+      "must be a pi foreground theme-token name",
+      JSON.stringify("warning"),
+    ),
+    excluded: checkedLeaf(
+      "excluded",
+      "colors.excluded",
+      "dim",
+      isColour,
+      "must be a pi foreground theme-token name",
+      JSON.stringify("dim"),
+    ),
+  },
+  url: {
+    sourceExtensions: leaf(
+      "sourceExtensions",
+      "url.sourceExtensions",
+      [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".md",
+        ".py",
+        ".sh",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".rs",
+        ".go",
+        ".css",
+        ".html",
+      ] as readonly string[],
+      STRING_ARRAY,
+      "must be an array of strings",
+      "the default extension list",
+    ),
+  },
+} satisfies LeafSpecsFor<Settings>;
+
+function isLeafSpec(value: unknown): value is LeafSpec<unknown> {
+  return isObject(value) && "defaultValue" in value;
+}
+
+function cloneDefault<T>(value: T): T {
+  return (Array.isArray(value) ? [...value] : value) as T;
+}
+
+/** Build the defaults object from the one field table. */
+function defaultsFrom(node: RawObject): unknown {
+  const out: RawObject = {};
+  for (const [key, value] of Object.entries(node)) {
+    out[key] = isLeafSpec(value)
+      ? cloneDefault(value.defaultValue)
+      : defaultsFrom(value as RawObject);
+  }
+  return out;
+}
+
+/** Palette C from the accepted prototype. */
+export const DEFAULT_SETTINGS: Settings = defaultsFrom(FIELDS as unknown as RawObject) as Settings;
+
+/** A mutable copy, so callers cannot accidentally edit the defaults. */
+export function defaultSettings(): Settings {
+  return structuredClone(DEFAULT_SETTINGS);
+}
 
 function fallbackDiagnostic(key: string, requirement: string, used: string): Diagnostic {
   return {
@@ -154,105 +381,19 @@ function fallbackDiagnostic(key: string, requirement: string, used: string): Dia
   };
 }
 
-interface LeafSpec<T> {
-  property: string;
-  key: string;
-  schema: TSchema;
-  fallback: () => T;
-  requirement: string;
-  used: string;
-}
-
-function leaf<T>(
-  property: string,
-  key: string,
-  schema: TSchema,
-  fallback: () => T,
-  requirement: string,
-  used: string,
-): LeafSpec<T> {
-  return { property, key, schema, fallback, requirement, used };
-}
-
 function readSpec<T>(raw: RawObject, spec: LeafSpec<T>, diagnostics: Diagnostic[]): T {
-  return readLeaf(
-    raw,
-    spec.property,
-    spec.key,
-    spec.schema,
-    spec.fallback(),
-    spec.requirement,
-    spec.used,
-    diagnostics,
-  );
+  const value = raw[spec.property];
+  const valid = spec.validate
+    ? spec.validate(value)
+    : spec.schema
+      ? Check(spec.schema, value)
+      : false;
+  if (valid) return cloneDefault(value) as T;
+  if (value !== undefined) {
+    diagnostics.push(fallbackDiagnostic(`piMention.${spec.key}`, spec.requirement, spec.used));
+  }
+  return cloneDefault(spec.defaultValue);
 }
-
-const TOP_FIELDS = {
-  completionSuffix: leaf(
-    "completionSuffix",
-    "completionSuffix",
-    STRING,
-    () => DEFAULT_SETTINGS.completionSuffix,
-    "must be a string",
-    JSON.stringify(DEFAULT_SETTINGS.completionSuffix),
-  ),
-  hideSlashSkills: leaf(
-    "hideSlashSkills",
-    "hideSlashSkills",
-    BOOLEAN,
-    () => DEFAULT_SETTINGS.hideSlashSkills,
-    "must be a boolean",
-    String(DEFAULT_SETTINGS.hideSlashSkills),
-  ),
-};
-
-const RANKING_FIELDS = {
-  strategy: leaf(
-    "strategy",
-    "ranking.strategy",
-    STRATEGY,
-    () => DEFAULT_SETTINGS.ranking.strategy,
-    "must be one of frecency, recent, frequent, alphabetical or sourceOrder",
-    JSON.stringify(DEFAULT_SETTINGS.ranking.strategy),
-  ),
-  projectSkillsFirst: leaf(
-    "projectSkillsFirst",
-    "ranking.projectSkillsFirst",
-    BOOLEAN,
-    () => DEFAULT_SETTINGS.ranking.projectSkillsFirst,
-    "must be a boolean",
-    String(DEFAULT_SETTINGS.ranking.projectSkillsFirst),
-  ),
-};
-
-const URL_FIELDS = {
-  sourceExtensions: leaf(
-    "sourceExtensions",
-    "url.sourceExtensions",
-    STRING_ARRAY,
-    () => DEFAULT_SETTINGS.url.sourceExtensions,
-    "must be an array of strings",
-    "the default extension list",
-  ),
-};
-
-const NAME_FIELDS = {
-  skills: {
-    schema: STRING_ARRAY,
-    requirement: "must be an array of strings",
-    used: "an empty list",
-  },
-  tools: {
-    schema: STRING_ARRAY,
-    requirement: "must be an array of strings",
-    used: "an empty list",
-  },
-  roles: {
-    schema: STRING_ARRAY,
-    requirement: "must be an array of strings",
-    used: "an empty list",
-  },
-} as const;
 
 /** A nested settings object; a non-object falls back to that whole section. */
 function readGroup(
@@ -272,45 +413,13 @@ function readGroup(
   return value;
 }
 
-function readLeaf<T>(
-  raw: RawObject,
-  property: string,
-  key: string,
-  schema: TSchema,
-  fallbackValue: T,
-  requirement: string,
-  used: string,
-  diagnostics: Diagnostic[],
-): T {
-  const value = raw[property];
-  if (Check(schema, value)) {
-    return (Array.isArray(value) ? [...value] : value) as T;
-  }
-  if (value !== undefined) {
-    diagnostics.push(fallbackDiagnostic(`piMention.${key}`, requirement, used));
-  }
-  return (Array.isArray(fallbackValue) ? [...fallbackValue] : fallbackValue) as T;
-}
+type NameLists = Settings["exclude"];
+type NameGroup = { [K in keyof NameLists]: LeafSpec<NameLists[K]> };
 
-function readNameLists(
-  raw: RawObject,
-  key: string,
-  fallbackValue: NameLists,
-  diagnostics: Diagnostic[],
-): NameLists {
-  const result: NameLists = { ...fallbackValue };
+function readNameLists(raw: RawObject, group: NameGroup, diagnostics: Diagnostic[]): NameLists {
+  const result = {} as NameLists;
   for (const name of NAME_KEYS) {
-    const spec = NAME_FIELDS[name];
-    result[name] = readLeaf(
-      raw,
-      name,
-      `${key}.${name}`,
-      spec.schema,
-      fallbackValue[name],
-      spec.requirement,
-      spec.used,
-      diagnostics,
-    );
+    result[name] = readSpec(raw, group[name], diagnostics);
   }
   return result;
 }
@@ -318,20 +427,7 @@ function readNameLists(
 function readColours(raw: RawObject, diagnostics: Diagnostic[]): ColourSettings {
   const result = { ...DEFAULT_SETTINGS.colors };
   for (const key of COLOUR_KEYS) {
-    const value = raw[key];
-    if (typeof value === "string" && FOREGROUND_ROLES.has(value)) {
-      result[key] = value;
-      continue;
-    }
-    if (value !== undefined) {
-      diagnostics.push(
-        fallbackDiagnostic(
-          `piMention.colors.${key}`,
-          "must be a pi foreground theme-token name",
-          JSON.stringify(DEFAULT_SETTINGS.colors[key]),
-        ),
-      );
-    }
+    result[key] = readSpec(raw, FIELDS.colors[key], diagnostics);
   }
   return result;
 }
@@ -344,16 +440,11 @@ function readTriggers(raw: RawObject, diagnostics: Diagnostic[]): Settings["trig
   for (const name of TRIGGER_CLASSES) {
     const value = group[name];
     if (value === undefined) continue;
-    if (isTrigger(value)) {
-      customs[name] = value;
+    const spec = FIELDS.triggers[name];
+    if (spec.validate?.(value)) {
+      customs[name] = value as string;
     } else {
-      diagnostics.push(
-        fallbackDiagnostic(
-          `piMention.triggers.${name}`,
-          'must be one character other than whitespace, "/", "@", "\\" or "`"',
-          JSON.stringify(triggers[name]),
-        ),
-      );
+      diagnostics.push(fallbackDiagnostic(`piMention.${spec.key}`, spec.requirement, spec.used));
     }
   }
 
@@ -385,10 +476,11 @@ function readTriggers(raw: RawObject, diagnostics: Diagnostic[]): Settings["trig
 /**
  * Validate the effective `piMention` object.
  *
- * Every missing field takes its code default. One invalid leaf falls back on
- * its own with one diagnostic; a malformed parent object falls back to that
- * section's defaults with one diagnostic. Unknown keys are ignored. The path
- * trigger is absent by design: pi core owns `@`.
+ * The field table supplies every leaf's default, validation and fallback
+ * wording; every missing field takes its table default. One invalid leaf falls
+ * back on its own with one diagnostic; a malformed parent object falls back to
+ * that section's defaults with one diagnostic. Unknown keys are ignored. The
+ * path trigger is absent by design: pi core owns `@`.
  */
 export function loadSettings(raw: unknown): { settings: Settings; diagnostics: Diagnostic[] } {
   const diagnostics: Diagnostic[] = [];
@@ -406,20 +498,19 @@ export function loadSettings(raw: unknown): { settings: Settings; diagnostics: D
   const colors = readGroup(raw, "colors", "colors", diagnostics);
   const url = readGroup(raw, "url", "url", diagnostics);
 
-  const defaults = DEFAULT_SETTINGS;
   const settings: Settings = {
     triggers: readTriggers(raw, diagnostics),
-    completionSuffix: readSpec(raw, TOP_FIELDS.completionSuffix, diagnostics),
-    hideSlashSkills: readSpec(raw, TOP_FIELDS.hideSlashSkills, diagnostics),
+    completionSuffix: readSpec(raw, FIELDS.completionSuffix, diagnostics),
+    hideSlashSkills: readSpec(raw, FIELDS.hideSlashSkills, diagnostics),
     ranking: {
-      strategy: readSpec(ranking, RANKING_FIELDS.strategy, diagnostics),
-      pinned: readNameLists(pinned, "ranking.pinned", defaults.ranking.pinned, diagnostics),
-      projectSkillsFirst: readSpec(ranking, RANKING_FIELDS.projectSkillsFirst, diagnostics),
+      strategy: readSpec(ranking, FIELDS.ranking.strategy, diagnostics),
+      pinned: readNameLists(pinned, FIELDS.ranking.pinned, diagnostics),
+      projectSkillsFirst: readSpec(ranking, FIELDS.ranking.projectSkillsFirst, diagnostics),
     },
-    exclude: readNameLists(exclude, "exclude", defaults.exclude, diagnostics),
+    exclude: readNameLists(exclude, FIELDS.exclude, diagnostics),
     colors: readColours(colors, diagnostics),
     url: {
-      sourceExtensions: readSpec(url, URL_FIELDS.sourceExtensions, diagnostics),
+      sourceExtensions: readSpec(url, FIELDS.url.sourceExtensions, diagnostics),
     },
   };
 

@@ -1,3 +1,4 @@
+import { isWhitespace } from "./grammar.ts";
 import type {
   ExpandOptions,
   ExpandedMessage,
@@ -67,10 +68,6 @@ export function firstResolvedSkill(
     .sort((a, b) => a.mention.span.start - b.mention.span.start)[0];
   if (!first || first.status !== "resolved" || !first.target) return undefined;
   return first;
-}
-
-function isWhitespace(character: string | undefined): boolean {
-  return character !== undefined && /\s/u.test(character);
 }
 
 /** Remove the mention and one adjacent whitespace run, so prose keeps single spacing. */

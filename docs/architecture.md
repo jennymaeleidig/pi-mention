@@ -95,10 +95,12 @@ loadSettings(raw: unknown) -> { settings: Settings; diagnostics: Diagnostic[] }
 
 `ExpandedMessage` carries the expanded `text`, the native `skillBlock` when the
 input seam built one, and a `skillFailure` when a resolved skill could not
-become a block. `ExpandOptions.skillSource` is the adapter-supplied lookup for a
-resolved skill's `SkillSource` (location, base directory and frontmatter-stripped
-body); expansion itself never reads a file. The optional source keeps the seam
-pure while the pi adapter owns the I/O.
+become a block. A pathless skill stays in the color and picker catalogs but has
+no SKILL.md to read; the input seam treats it as unresolved and leaves it
+literal without a notice. `ExpandOptions.skillSource` is the adapter-supplied
+lookup for a resolved skill's `SkillSource` (location, base directory and
+frontmatter-stripped body); expansion itself never reads a file. The optional
+source keeps the seam pure while the pi adapter owns the I/O.
 
 `expandContextMessages` is the context seam's one interface. It owns per-part
 expansion, the leading-role rule, one `<tool_mentions>` block after the last
@@ -116,9 +118,10 @@ agreeing on identity and first-occurrence order.
 probing through `pathCandidates`, resolution, URL mentions, span validation and
 line projection. `UrlDetector` is an input, so linkify and tlds stay behind the
 pi adapter while the composed result is tested in core. `colourSpans` drops
-spans outside the text. The pi memo keys on text, path version, tool version,
-settings and the Catalog set, so a landing probe or a new tool recolours the
-same text.
+spans outside the text. The pi memo reads its Catalogs and settings through a
+source callback and keys on both references, plus text, path version and tool
+version, so a landing probe, a new tool, a new Catalog set or new settings
+recolours the same text.
 
 `catalogs` is plain data built by the adapters. `createSessionCatalogs` constructs
 the one live Catalog set per extension instance: live skill and tool getters, the
@@ -206,10 +209,11 @@ The extension reads one top-level key:
 - `typebox` validates the `piMention` object in code; there is no checked-in
   `config.schema.json`.
 
-`loadSettings` validates the effective object. A per-section field table holds
-each leaf's schema, fallback requirement and fallback wording; the values
-remain in `DEFAULT_SETTINGS`, and the table points at them. An invalid value
-falls back to the code default for that key and produces one diagnostic; diagnostics are
+`loadSettings` validates the effective object. One field table holds each
+leaf's default, schema, fallback requirement and fallback wording;
+`DEFAULT_SETTINGS` is derived from that table, and the table is checked against
+`Settings` at compile time. An invalid value falls back to the code default for
+that key and produces one diagnostic; diagnostics are
 notified at every `session_start`. A malformed `piMention` value (not an object)
 falls back to all defaults with one diagnostic. A malformed section (for
 example `"colors": "bright"`) falls back to that section's defaults with one

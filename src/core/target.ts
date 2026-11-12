@@ -6,9 +6,20 @@ export function targetKey(target: Target): string {
   return target.name ?? target.label;
 }
 
-/** True when two targets are the same target, not merely the same label. */
+/**
+ * True when two catalog entries denote the same target: same class and
+ * registered name. A Catalog has one entry per registered name, so source-scope
+ * copies never coexist.
+ */
 export function sameTarget(a: Target, b: Target): boolean {
   return a.class === b.class && targetKey(a) === targetKey(b);
+}
+
+/** The live catalog entry for a target, when the catalog still has it. */
+export function liveTarget(target: Target, targets: readonly Target[]): Target | undefined {
+  return targets.find(
+    (candidate) => candidate.label === target.label && sameTarget(candidate, target),
+  );
 }
 
 /**

@@ -233,11 +233,13 @@ the end of a token and mid-token.
 
 ## Checks
 
-- `npm test`: 174 passing (169 before the cursor-marker fix, plus 5 paint tests).
+- `npm test`: 205 passing (169 before the cursor-marker fix; 5 paint tests and 31 later tests).
 - `npm run typecheck`: clean.
 - `npm run format:check`: clean.
 
 ## Not verified
+
+- The interactive mention smoke checklist in [manual-smoke.md](./manual-smoke.md).
 
 - A live third-party model provider. Send-path verification used the local
   mock above; the seams and exact text were verified, not a provider's

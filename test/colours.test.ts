@@ -24,7 +24,7 @@ test("the colour memo recomputes the same text when a tool appears", () => {
       return toolsVersion;
     },
   };
-  const spansForLines = spansForLinesFactory(live, settings);
+  const spansForLines = spansForLinesFactory(() => ({ catalogs: live, settings }));
 
   assert.deepEqual(spansForLines(["%late"])[0], [{ start: 0, end: 5, role: "warning" }]);
 
@@ -47,7 +47,7 @@ test("the colour memo recomputes the same text when a path probe lands", () => {
       },
     },
   };
-  const spansForLines = spansForLinesFactory(live, settings);
+  const spansForLines = spansForLinesFactory(() => ({ catalogs: live, settings }));
 
   assert.deepEqual(spansForLines(["@exists.ts"])[0], [{ start: 0, end: 10, role: "warning" }]);
 
@@ -58,7 +58,23 @@ test("the colour memo recomputes the same text when a path probe lands", () => {
 });
 
 test("the memo returns the same result for unchanged text and versions", () => {
-  const spansForLines = spansForLinesFactory(base, settings);
+  const spansForLines = spansForLinesFactory(() => ({ catalogs: base, settings }));
   const first = spansForLines(["$wayfinder"]);
   assert.equal(spansForLines(["$wayfinder"]), first);
+});
+
+test("the memo refreshes when the Catalog set or settings changes", () => {
+  let live: Catalogs = base;
+  let config = settings;
+  const spansForLines = spansForLinesFactory(() => ({ catalogs: live, settings: config }));
+
+  assert.deepEqual(spansForLines(["$wayfinder"])[0], [{ start: 0, end: 10, role: "syntaxNumber" }]);
+
+  live = { ...base, skills: [] };
+  assert.deepEqual(spansForLines(["$wayfinder"])[0], [{ start: 0, end: 10, role: "warning" }]);
+
+  live = base;
+  config = defaultSettings();
+  config.colors.skill = "accent";
+  assert.deepEqual(spansForLines(["$wayfinder"])[0], [{ start: 0, end: 10, role: "accent" }]);
 });

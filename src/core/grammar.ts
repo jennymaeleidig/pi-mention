@@ -83,6 +83,11 @@ export function inRanges(index: number, ranges: readonly Range[]): boolean {
   return ranges.some((range) => index >= range.start && index < range.end);
 }
 
+/** True when the character is whitespace. */
+export function isWhitespace(character: string | undefined): boolean {
+  return character !== undefined && /\s/u.test(character);
+}
+
 function isBoundary(text: string, index: number): boolean {
   if (index === 0) return true;
   return BOUNDARY_BEFORE.test(text[index - 1] ?? "");

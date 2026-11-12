@@ -3,7 +3,7 @@ import { sameTarget } from "../core/target.ts";
 import type { Catalogs, Settings, Target } from "../core/types.ts";
 import { pathCatalog, type PathCatalog } from "./catalogs/paths.ts";
 import { roleCatalog } from "./catalogs/roles.ts";
-import { liveSkillEntries, skillCatalog, type SkillEntry } from "./catalogs/skills.ts";
+import { isSkillEntry, liveSkillCommands, type SkillEntry } from "./catalogs/skills.ts";
 import { toolCatalog } from "./catalogs/tools.ts";
 
 export interface SessionCatalogsOptions {
@@ -44,7 +44,9 @@ export function createSessionCatalogs(
 
   const catalogs: Catalogs = {
     get skills() {
-      return skillCatalog(pi);
+      return liveSkillCommands(pi, settings.ranking.projectSkillsFirst).map(
+        (command) => command.target,
+      );
     },
     get tools() {
       return toolCatalog(pi);
@@ -59,8 +61,9 @@ export function createSessionCatalogs(
   return {
     catalogs,
     skillEntry(target: Target): SkillEntry | undefined {
-      return liveSkillEntries(pi, settings.ranking.projectSkillsFirst).find((entry) =>
-        sameTarget(entry.target, target),
+      return liveSkillCommands(pi, settings.ranking.projectSkillsFirst).find(
+        (command): command is SkillEntry =>
+          isSkillEntry(command) && sameTarget(command.target, target),
       );
     },
     markToolsChanged(): void {

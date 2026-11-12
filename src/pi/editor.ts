@@ -11,7 +11,7 @@ type EditorPort = {
   getLines(): string[];
   getPaddingX?(): number;
   render(width: number): string[];
-  buildVisualLineMap?(width: number): { logicalLine: number; startCol: number; length: number }[];
+  buildVisualLineMap(width: number): { logicalLine: number; startCol: number; length: number }[];
   lastWidth?: number;
   scrollOffset?: number;
   renderedVisibleLineCount?: number;
@@ -113,7 +113,7 @@ function installDecoration(
   port.render = (width: number): string[] => {
     const lines = render(width);
     const theme = getTheme();
-    const layout = port.buildVisualLineMap?.(port.lastWidth ?? width);
+    const layout = port.buildVisualLineMap(port.lastWidth ?? width);
     if (!theme || !layout) return lines;
 
     return paintFrame({
@@ -122,9 +122,11 @@ function installDecoration(
       top: topLine,
       bottom: bottomLine,
       layout,
+      // These numeric fallbacks cover the pre-render state; `isDecoratable`
+      // only proves the fields exist.
       rows: port.renderedVisibleLineCount ?? 0,
       scroll: port.scrollOffset ?? 0,
-      padding: Math.min(port.getPaddingX?.() ?? 0, Math.max(0, Math.floor((width - 1) / 2))),
+      paddingX: port.getPaddingX?.() ?? 0,
       spansForLines: () => spansForLines(port.getLines()),
       wrap: (role) => wrap(theme, role),
       allowVimLabel: VIM_EDITOR in port,

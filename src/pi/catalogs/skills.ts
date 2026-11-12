@@ -71,29 +71,48 @@ export function skillEntries(pi: ExtensionAPI): SkillEntry[] {
 }
 
 /** Stable project-first partition, preserving pi's source order inside each tier. */
+export function orderSkillCommands<T extends SkillCommand>(
+  commands: readonly T[],
+  projectFirst: boolean,
+): T[] {
+  if (!projectFirst) return [...commands];
+  return [
+    ...commands.filter((command) => command.target.scope === "project"),
+    ...commands.filter((command) => command.target.scope !== "project"),
+  ];
+}
+
+/** Stable project-first ordering for the readable entries. */
 export function orderSkillEntries(
   entries: readonly SkillEntry[],
   projectFirst: boolean,
 ): SkillEntry[] {
-  if (!projectFirst) return [...entries];
-  return [
-    ...entries.filter((entry) => entry.target.scope === "project"),
-    ...entries.filter((entry) => entry.target.scope !== "project"),
-  ];
+  return orderSkillCommands(entries, projectFirst);
+}
+
+/** True when a command carries the file information expansion needs. */
+export function isSkillEntry(command: SkillCommand): command is SkillEntry {
+  return command.location !== undefined && command.baseDir !== undefined;
 }
 
 /**
- * The live, project-ordered skill list with one entry per label. The first
+ * The live, project-ordered skill list with one command per label. The first
  * command for a label wins, so project-first configuration selects the project
- * copy when both scopes define the same skill.
+ * copy when both scopes define the same skill. Pathless skills stay in this
+ * list so the color and picker catalogs still offer them.
  */
-export function liveSkillEntries(pi: ExtensionAPI, projectFirst = false): SkillEntry[] {
+export function liveSkillCommands(pi: ExtensionAPI, projectFirst = false): SkillCommand[] {
   const seen = new Set<string>();
-  return orderSkillEntries(skillEntries(pi), projectFirst).filter((entry) => {
-    if (seen.has(entry.target.label)) return false;
-    seen.add(entry.target.label);
+  return orderSkillCommands(skillCommands(pi), projectFirst).filter((command) => {
+    if (seen.has(command.target.label)) return false;
+    seen.add(command.target.label);
     return true;
   });
+}
+
+/** The readable slice of `liveSkillCommands`. */
+export function liveSkillEntries(pi: ExtensionAPI, projectFirst = false): SkillEntry[] {
+  return liveSkillCommands(pi, projectFirst).filter(isSkillEntry);
 }
 
 /**

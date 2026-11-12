@@ -55,7 +55,8 @@ export interface PaintFrameOptions {
   layout: readonly FrameSegment[];
   rows: number;
   scroll: number;
-  padding: number;
+  /** The editor's horizontal padding before the width clamp. */
+  paddingX: number;
   /** Called only after the frame proof succeeds. */
   spansForLines: () => readonly (readonly ColourSpan[])[];
   wrap: (role: string) => PaintWrap | undefined;
@@ -71,7 +72,7 @@ export interface PaintFrameOptions {
  * `paintRow`, which never splits a grapheme or an escape.
  */
 export function paintFrame(options: PaintFrameOptions): string[] {
-  const { lines, width, top, bottom, layout, rows, scroll, padding } = options;
+  const { lines, width, top, bottom, layout, rows, scroll } = options;
   if (rows <= 0 || lines.length < rows + 2) return lines;
   if (
     !frameRowMatches(lines[0] ?? "", top, width, false) ||
@@ -83,6 +84,7 @@ export function paintFrame(options: PaintFrameOptions): string[] {
   const perLine = options.spansForLines();
   if (perLine.every((spans) => spans.length === 0)) return lines;
 
+  const padding = Math.min(options.paddingX, Math.max(0, Math.floor((width - 1) / 2)));
   const out = [...lines];
   for (let row = 0; row < rows; row++) {
     const segment = layout[scroll + row];

@@ -1,7 +1,7 @@
-import { findCodeRanges, inRanges, parse, triggerSpecs } from "./grammar.ts";
+import { findCodeRanges, inRanges, isWhitespace, parse, triggerSpecs } from "./grammar.ts";
 import { resolve } from "./resolve.ts";
 import { proseStart, skillBlockBounds } from "./skill-expand.ts";
-import { targetKey } from "./target.ts";
+import { liveTarget, targetKey } from "./target.ts";
 import type { Catalogs, ResolvedMention, Settings, Target } from "./types.ts";
 
 /** One content part the context seam can carry. Extra fields pass through. */
@@ -92,19 +92,13 @@ function leadingRoleMention(
   );
 }
 
-function isWhitespace(character: string | undefined): boolean {
-  return character !== undefined && /\s/u.test(character);
-}
-
 /**
  * Prefer the live catalog entry, so expansion names the role the spawner knows.
  * An out-of-catalog role stays literal by design: the role must still be live to
  * dispatch.
  */
 function liveRoleTarget(target: Target, catalogs: Catalogs): Target | undefined {
-  return catalogs.roles.find(
-    (candidate) => candidate.label === target.label && targetKey(candidate) === targetKey(target),
-  );
+  return liveTarget(target, catalogs.roles);
 }
 
 /** Leading whitespace and punctuation that do not count as a task. */
@@ -182,8 +176,7 @@ function dedupeToolTargets(targets: readonly Target[]): Target[] {
 
 /** Prefer the live catalog entry, so the block always reads current metadata. */
 function liveToolTarget(target: Target, catalogs: Catalogs): Target {
-  const key = targetKey(target);
-  return catalogs.tools.find((candidate) => targetKey(candidate) === key) ?? target;
+  return liveTarget(target, catalogs.tools) ?? target;
 }
 
 /** The signature line a tool block carries, with a generic fallback. */

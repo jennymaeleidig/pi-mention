@@ -12,7 +12,7 @@ interface Command {
   name: string;
   source: "skill";
   sourceInfo: {
-    path: string;
+    path?: string;
     baseDir?: string;
     scope?: "user" | "project" | "temporary";
   };
@@ -132,6 +132,34 @@ test("skillEntry follows project-first and matches the registered name", () => {
     const entry = session.skillEntry(target);
     assert.equal(entry?.location, "/project/tdd/SKILL.md");
     assert.equal(entry?.baseDir, "/project/tdd");
+  } finally {
+    cleanup();
+  }
+});
+
+test("a pathless skill stays in the catalog and has no entry", () => {
+  const { cwd, agentDir, cleanup } = tempRoot();
+  try {
+    const commands: Command[] = [
+      { name: "skill:inline", source: "skill", sourceInfo: { scope: "user" } },
+      command("tdd", "user", "/user/tdd"),
+    ];
+    const session = createSessionCatalogs(
+      harness(() => commands),
+      defaultSettings(),
+      {
+        cwd,
+        agentDir,
+      },
+    );
+
+    assert.deepEqual(
+      session.catalogs.skills.map((target) => target.label),
+      ["inline", "tdd"],
+    );
+    const inline = session.catalogs.skills.find((target) => target.label === "inline");
+    assert.ok(inline);
+    assert.equal(session.skillEntry(inline), undefined);
   } finally {
     cleanup();
   }

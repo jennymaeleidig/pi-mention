@@ -53,9 +53,13 @@ export function register(pi: ExtensionAPI): void {
     pi.on("tool_execution_end", toolsChanged);
 
     installAutocomplete(ctx.ui, settings, () => current.catalogs);
-    installEditorColours(ctx.ui, spansForLinesFactory(current.catalogs, settings), (bind) => {
-      requestRender = bind;
-      current.setOnPathChange(bind);
-    });
+    installEditorColours(
+      ctx.ui,
+      spansForLinesFactory(() => ({ catalogs: current.catalogs, settings })),
+      (bind) => {
+        requestRender = bind;
+        current.setOnPathChange(bind);
+      },
+    );
   });
 }

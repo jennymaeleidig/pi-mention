@@ -61,6 +61,9 @@ trimmed. If no prose remains, the block stands alone.
 - If the skill name or path contains a `"` or a newline, or the body contains a
   line `</skill>`, do not build the block: leave the mention literal and notify
   once when there is a UI.
+- A pathless skill stays in the color and picker catalogs but has no SKILL.md to
+  read. The input seam treats it as unresolved and leaves it literal without a
+  notice.
 - The transcript shows Pi's collapsed `[skill] name (ctrl+o to expand)` row,
   followed by the hoisted prose.
 
