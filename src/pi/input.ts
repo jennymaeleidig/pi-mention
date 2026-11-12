@@ -4,7 +4,7 @@ import {
   type ExtensionAPI,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { expand, firstResolvedSkill, skillBlockBounds } from "../core/expand.ts";
+import { expandSkill, firstResolvedSkill, skillBlockBounds } from "../core/skill-expand.ts";
 import { parse, triggerSpecs } from "../core/grammar.ts";
 import { resolve } from "../core/resolve.ts";
 import type { Settings, SkillSource } from "../core/types.ts";
@@ -68,7 +68,7 @@ export function installSkillInput(
     const entry = selected ? session.skillEntry(selected) : undefined;
     const source = entry ? await readSkill(entry) : undefined;
 
-    const expanded = expand(event.text, resolved, {
+    const expanded = expandSkill(event.text, resolved, {
       skillSource: () => source,
     });
     if (!expanded.skillBlock) {

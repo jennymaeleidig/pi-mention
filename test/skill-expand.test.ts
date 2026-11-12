@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseSkillBlock } from "@earendil-works/pi-coding-agent";
-import { buildSkillBlock, expand, firstResolvedSkill } from "../src/core/expand.ts";
+import { buildSkillBlock, expandSkill, firstResolvedSkill } from "../src/core/skill-expand.ts";
 import { parse, triggerSpecs } from "../src/core/grammar.ts";
 import { resolve } from "../src/core/resolve.ts";
 import { defaultSettings } from "../src/core/settings.ts";
@@ -61,7 +61,7 @@ function expanded(
     settings,
   );
   const lookup = overrides ?? sources;
-  return expand(text, resolved, {
+  return expandSkill(text, resolved, {
     skillSource: (target) => lookup.get(target.label),
   });
 }
@@ -152,7 +152,7 @@ test("a missing body lookup leaves the mention literal and reports the failure",
     catalogs,
     defaultSettings(),
   );
-  const missing = expand("please $tdd this", resolved, {
+  const missing = expandSkill("please $tdd this", resolved, {
     skillSource: () => undefined,
   });
   assert.equal(missing.skillBlock, undefined);

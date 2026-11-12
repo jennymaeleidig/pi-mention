@@ -28,8 +28,10 @@ No bundler. No second package for colours.
 ```text
 src/core/            no pi imports, no I/O
   grammar.ts         parse: mentions, spans, code ranges
-  resolve.ts         label + catalog -> target
-  expand.ts          message + resolved + catalogs -> expanded text and blocks
+  resolve.ts         label + catalog -> target, path candidate order
+  skill-expand.ts    $ skill block builder and input seam
+  context-expand.ts  message-level context seam: % tool, & role, escapes
+  target.ts          target identity and history lookup
   colors.ts          text + resolved + config -> colour spans
   paint.ts           one rendered row + spans -> insertion-only ANSI
   picker.ts          trigger token + ranking
@@ -71,19 +73,11 @@ parse(text: string, specs: TriggerSpec[]) -> { mentions: Mention[]; codeRanges: 
 
 resolve(mentions: Mention[], catalogs: Catalogs, config: Settings) -> ResolvedMention[]
 
-expand(message: string, resolved: ResolvedMention[],
-       options?: ExpandOptions) -> ExpandedMessage
+expandSkill(message: string, resolved: ResolvedMention[],
+            options?: ExpandOptions) -> ExpandedMessage
 
-expandTools(message: string, resolved: ResolvedMention[], catalogs: Catalogs,
-            options?: ExpandToolsOptions) -> ExpandedMessage
-
-expandRoles(message: string, resolved: ResolvedMention[], catalogs: Catalogs)
-  -> ExpandedMessage
-
-toolBlockEntries(message: string, resolved: ResolvedMention[], catalogs: Catalogs)
-  -> Target[]
-
-toolBlockText(entries: Target[]) -> string
+expandContextMessages(messages: ContextMessage[], catalogs: Catalogs,
+                      config: Settings) -> ContextMessage[] | undefined
 
 colourSpans(text: string, resolved: ResolvedMention[], config: Settings)
   -> ColourSpan[]
@@ -98,20 +92,17 @@ resolved skill's `SkillSource` (location, base directory and frontmatter-strippe
 body); expansion itself never reads a file. The optional source keeps the seam
 pure while the pi adapter owns the I/O.
 
-`expandTools` is the context seam's pure expander. It replaces every eligible
-`%tool` mention inline with the registered name and appends one
-`<tool_mentions>` block in first-occurrence order. `toolBlockEntries` computes
-the distinct targets a message contributes, and `toolBlockText` renders the
-block; the context adapter uses the two halves to put one block after the last
-text part of a multi-part message. `ToolReach` is `direct` or `indirect`, and
-`targetKey` and `dedupeToolTargets` keep the block, the adapter and the catalog
+`expandContextMessages` is the context seam's one interface. It owns per-part
+expansion, the leading-role rule, one `<tool_mentions>` block after the last
+text part of a message, first-occurrence deduplication, model-facing
+unescaping and change detection. It returns `undefined` when nothing changed,
+so the adapter can return no event result. Tool mentions expand inline to the
+registered name; a resolved leading role becomes the dispatch prefix, and a
+role with only whitespace and punctuation after it gets the no-task
+instruction. Mid-sentence, later, unresolved and excluded mentions stay
+literal, and no role body is read or inlined. `ToolReach` is `direct` or
+`indirect`, and `targetKey` keeps the block, the adapter and the catalog
 agreeing on identity and first-occurrence order.
-
-`expandRoles` is the context seam's leading-only role expander. It replaces the
-first non-whitespace `&role` prose token, after any native skill block, with the
-dispatch prefix and leaves the rest as the task; a role with only whitespace and
-punctuation after it gets the no-task instruction instead. Mid-sentence, later,
-unresolved and excluded roles stay literal, and no role body is read or inlined.
 
 `catalogs` is plain data built by the adapters. `createSessionCatalogs` constructs
 the one live Catalog set per extension instance: live skill and tool getters, the

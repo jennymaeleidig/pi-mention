@@ -153,57 +153,37 @@ The user selected the `general` role but gave no task. Do not call the `subagent
 
 ## Seam
 
-There are two pure expansion seams, one per expandable class:
+There are two pure expansion seams, one per seam:
 
 ```ts
-expand(
+expandSkill(
   message: string,
   resolved: ResolvedMention[],
   options?: ExpandOptions,
 ): ExpandedMessage
 
-expandTools(
-  message: string,
-  resolved: ResolvedMention[],
+expandContextMessages(
+  messages: ContextMessage[],
   catalogs: Catalogs,
-  options?: ExpandToolsOptions,
-): ExpandedMessage
-
-expandRoles(
-  message: string,
-  resolved: ResolvedMention[],
-  catalogs: Catalogs,
-): ExpandedMessage
-
-toolBlockEntries(
-  message: string,
-  resolved: ResolvedMention[],
-  catalogs: Catalogs,
-): Target[]
-
-toolBlockText(entries: readonly Target[]): string
+  settings: Settings,
+): ContextMessage[] | undefined
 ```
 
-`expand` takes the message text, the already-resolved mentions and optional
+`expandSkill` takes the message text, the already-resolved mentions and optional
 adapter-supplied skill sources. It returns the expanded text plus the skill
 block to use at input and, when a resolved skill cannot become a block, the
 failure for the adapter's one notice. The `pi` adapter supplies a `SkillSource`
 (location, base directory and frontmatter-stripped body) through
 `options.skillSource`, so expansion never reads a file itself.
 
-`expandTools` takes the message text, the already-resolved tool mentions and the
-plain-data catalogs. It replaces each eligible mention inline and appends one
-tool block; `options.appendBlock: false` lets the context adapter do that once
-for a multi-part message. `toolBlockEntries` returns the distinct targets a
-message contributes, and `toolBlockText` renders them, so a multi-part message
-can share one block after its last text part.
-
-`expandRoles` takes the message text, the already-resolved role mentions and the
-plain-data catalogs. Only the first non-whitespace prose token,
-after any native skill block, is eligible. A resolved role is replaced in place
-by the dispatch prefix; the rest of the prose is the task after a blank line, or
-the no-task text when nothing follows. Every other role mention stays literal.
-The role body is never read or inlined.
+`expandContextMessages` takes the user messages and the plain-data catalogs. It
+owns per-part expansion, the leading-role rule, one tool block after the last
+text part of a message, deduplication, unescaping and change detection. It
+returns `undefined` when nothing changed, keeping a no-op context event free of
+an event result. Tool mentions expand inline and share one block; only the first
+non-whitespace prose token, after any native skill block, may become the role
+dispatch prefix. Every other role mention stays literal. The role body is never
+read or inlined.
 
 Neither seam performs I/O, registers anything, activates anything, or edits the
 prompt's tool section. Both keep unresolved, excluded and out-of-catalog

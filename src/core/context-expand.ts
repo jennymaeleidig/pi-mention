@@ -1,99 +1,39 @@
-import { findCodeRanges, inRanges } from "./grammar.ts";
+import { findCodeRanges, inRanges, parse, triggerSpecs } from "./grammar.ts";
+import { resolve } from "./resolve.ts";
+import { proseStart, skillBlockBounds } from "./skill-expand.ts";
 import { targetKey } from "./target.ts";
-import type {
-  Catalogs,
-  ExpandOptions,
-  ExpandedMessage,
-  Range,
-  ResolvedMention,
-  Settings,
-  SkillSource,
-  Target,
-} from "./types.ts";
+import type { Catalogs, ResolvedMention, Settings, Target } from "./types.ts";
 
-/** The opening marker of Pi's native skill block. */
-export const SKILL_BLOCK_OPEN = '<skill name="';
-const SKILL_CLOSE_TAG = "</skill>";
-const SKILL_BLOCK_CLOSE = `\n${SKILL_CLOSE_TAG}`;
-const CLOSING_TAG_LINE = new RegExp(`^${SKILL_CLOSE_TAG}$`, "m");
-
-/**
- * The extent of the native skill block that opens `text`, ignoring leading
- * whitespace. `start` is present whenever the opening marker is; `end` is
- * present once the closing-tag line is found.
- */
-export function skillBlockBounds(text: string): { start: number; end?: number } | undefined {
-  const start = text.length - text.trimStart().length;
-  if (!text.startsWith(SKILL_BLOCK_OPEN, start)) return undefined;
-  const close = text.indexOf(SKILL_BLOCK_CLOSE, start + SKILL_BLOCK_OPEN.length);
-  return close < 0 ? { start } : { start, end: close + SKILL_BLOCK_CLOSE.length };
+/** One content part the context seam can carry. Extra fields pass through. */
+export interface ContextPart {
+  type: string;
+  text?: string;
 }
 
-/**
- * The offset where prose begins, after any leading native skill block. An
- * unterminated skill block has no prose start.
- */
-export function proseStart(text: string): number | undefined {
-  const block = skillBlockBounds(text);
-  if (!block) return 0;
-  return block.end;
+/** One message the context seam can rewrite. Extra fields pass through. */
+export interface ContextMessage {
+  role: string;
+  content?: string | readonly ContextPart[];
 }
 
-/**
- * Build Pi's byte-exact skill block.
- *
- * The body is normalised to LF and trimmed. A quote or newline in the name or
- * path, or a line that would close the block early, makes the block
- * unrepresentable and returns undefined.
- */
-export function buildSkillBlock(source: SkillSource): string | undefined {
-  const { name, location, baseDir } = source;
-  if (/["\n]/.test(name) || /["\n]/.test(location)) return undefined;
-
-  const body = source.body.replace(/\r\n?/g, "\n").trim();
-  if (CLOSING_TAG_LINE.test(body)) return undefined;
-
-  return (
-    `${SKILL_BLOCK_OPEN}${name}" location="${location}">\n` +
-    `References are relative to ${baseDir}.\n\n${body}${SKILL_BLOCK_CLOSE}`
-  );
+interface TextPart extends ContextPart {
+  type: "text";
+  text: string;
 }
 
-/**
- * The first skill mention, when it resolved. Only that mention can become the
- * skill block: a later skill never expands, even when the first one does not
- * resolve. Later resolved skills are still coloured as skills.
- */
-export function firstResolvedSkill(
-  resolved: readonly ResolvedMention[],
-): ResolvedMention | undefined {
-  const first = resolved
-    .filter((mention) => mention.mention.class === "skill")
-    .sort((a, b) => a.mention.span.start - b.mention.span.start)[0];
-  if (!first || first.status !== "resolved" || !first.target) return undefined;
-  return first;
+function isTextPart(part: ContextPart): part is TextPart {
+  return part.type === "text" && typeof part.text === "string";
 }
 
-function isWhitespace(character: string | undefined): boolean {
-  return character !== undefined && /\s/u.test(character);
+interface ExpandedText {
+  text: string;
+  entries: Target[];
 }
 
-/** Remove the mention and one adjacent whitespace run, so prose keeps single spacing. */
-function removalRange(text: string, span: Range): Range {
-  let start = span.start;
-  let end = span.end;
-  if (isWhitespace(text[end])) {
-    while (isWhitespace(text[end])) end++;
-  } else {
-    while (start > 0 && isWhitespace(text[start - 1])) start--;
-  }
-  return { start, end };
-}
-
-/** The message with one mention removed, leaving every escape exactly as typed. */
-function removeMention(text: string, span: Range): string {
-  const range = removalRange(text, span);
-  return text.slice(0, range.start) + text.slice(range.end);
+/** True when the text has prose after any leading native skill block. */
+function hasProseAfterSkillBlock(text: string): boolean {
+  const start = proseStart(text);
+  return start !== undefined && text.slice(start).trim() !== "";
 }
 
 function triggersFor(settings: Settings): Set<string> {
@@ -127,52 +67,13 @@ function unescapeProse(text: string, triggers: ReadonlySet<string>): string {
   return out;
 }
 
-/**
- * Drop escaped-trigger backslashes in a message the model is about to receive,
- * without touching a leading native skill block. The context seam uses this so
- * the transcript keeps the escape while the expanded message does not.
- */
-export function unescapeExpandedText(text: string, settings: Settings): string {
+/** Drop escaped-trigger backslashes in a model-facing message, skill block untouched. */
+function unescapeExpandedText(text: string, settings: Settings): string {
   const triggers = triggersFor(settings);
   const block = skillBlockBounds(text);
   if (!block) return unescapeProse(text, triggers);
   if (block.end === undefined) return text;
   return text.slice(0, block.end) + unescapeProse(text.slice(block.end), triggers);
-}
-
-/**
- * Expand a message at the pure input seam.
- *
- * Skills are the only class expanded here. The first skill mention is the only
- * one eligible; when it resolves, it becomes Pi's canonical block, the mention
- * is removed and the remaining prose follows after `\n\n`. Unresolved or
- * excluded skills, later skills, code ranges and unrepresentable blocks stay
- * literal. Escapes are left exactly as typed: this seam persists the
- * transcript, and the context seam drops the backslashes for the model.
- */
-export function expand(
-  message: string,
-  resolved: readonly ResolvedMention[],
-  options: ExpandOptions = {},
-): ExpandedMessage {
-  const skill = firstResolvedSkill(resolved);
-  if (!skill?.target) return { text: message };
-
-  const source = options.skillSource?.(skill.target);
-  if (!source) {
-    return { text: message, skillFailure: { name: skill.target.label } };
-  }
-
-  const skillBlock = buildSkillBlock(source);
-  if (!skillBlock) {
-    return { text: message, skillFailure: { name: skill.target.label } };
-  }
-
-  const prose = removeMention(message, skill.mention.span).trim();
-  return {
-    text: prose ? `${skillBlock}\n\n${prose}` : skillBlock,
-    skillBlock,
-  };
 }
 
 /** The first non-whitespace prose token, skipping a leading native skill block. */
@@ -189,6 +90,10 @@ function leadingRoleMention(
   return resolved.find(
     (candidate) => candidate.mention.class === "role" && candidate.mention.span.start === start,
   );
+}
+
+function isWhitespace(character: string | undefined): boolean {
+  return character !== undefined && /\s/u.test(character);
 }
 
 /**
@@ -237,24 +142,19 @@ function roleNoTaskText(name: string): string {
  * Expand a leading `&role` mention for the model-facing message.
  *
  * Only the first non-whitespace prose token, after any native skill block, is
- * eligible. A resolved role is replaced in place by the dispatch prefix and the
- * rest of the message becomes the task after a blank line; with no task the
- * mention becomes the no-task instruction instead. A task that is only
- * whitespace and punctuation is no task, and leading punctuation is stripped
- * from a real task. Unresolved, excluded, mid-sentence, later and code mentions
- * stay literal. The role body is never inlined, and this function performs no
- * I/O.
+ * eligible. Unresolved, excluded, mid-sentence, later and code mentions stay
+ * literal. The role body is never inlined, and this function performs no I/O.
  */
-export function expandRoles(
+function expandRoles(
   message: string,
   resolved: readonly ResolvedMention[],
   catalogs: Catalogs,
-): ExpandedMessage {
+): ExpandedText {
   const mention = leadingRoleMention(message, resolved);
-  if (!mention?.target || mention.status !== "resolved") return { text: message };
+  if (!mention?.target || mention.status !== "resolved") return { text: message, entries: [] };
 
   const target = liveRoleTarget(mention.target, catalogs);
-  if (!target) return { text: message };
+  if (!target) return { text: message, entries: [] };
 
   const name = targetKey(target);
   const before = message.slice(0, mention.mention.span.start);
@@ -263,16 +163,12 @@ export function expandRoles(
     text: task
       ? `${before}${roleDispatchPrefix(name)}\n\n${task}`
       : `${before}${roleNoTaskText(name)}`,
+    entries: [],
   };
 }
 
-/**
- * Collapse targets to their first occurrence, keyed by `targetKey`.
- *
- * Both the single-message block and the multi-part context adapter use this,
- * so a repeated target is listed once.
- */
-export function dedupeToolTargets(targets: readonly Target[]): Target[] {
+/** Collapse targets to their first occurrence, keyed by `targetKey`. */
+function dedupeToolTargets(targets: readonly Target[]): Target[] {
   const seen = new Set<string>();
   const entries: Target[] = [];
   for (const target of targets) {
@@ -313,7 +209,7 @@ function toolBlockLine(target: Target): string {
   return `- \`${name}\` — call it directly. Signature: ${toolFallbackSignature(target)}`;
 }
 
-export interface ExpandToolsOptions {
+interface ExpandToolsOptions {
   /** False when the caller joins several text parts into one block. */
   appendBlock?: boolean;
 }
@@ -340,12 +236,8 @@ function uniqueToolTargets(mentions: readonly ResolvedMention[], catalogs: Catal
   );
 }
 
-/**
- * The distinct targets one message's tool block lists, in first-occurrence
- * order. Mentions inside the leading skill block, unresolved mentions and
- * excluded mentions are skipped.
- */
-export function toolBlockEntries(
+/** The distinct targets one message's tool block lists, in first-occurrence order. */
+function toolBlockEntries(
   message: string,
   resolved: readonly ResolvedMention[],
   catalogs: Catalogs,
@@ -354,7 +246,7 @@ export function toolBlockEntries(
 }
 
 /** Render the one `<tool_mentions>` block that follows the prose. */
-export function toolBlockText(entries: readonly Target[]): string {
+function toolBlockText(entries: readonly Target[]): string {
   return `<tool_mentions>\n${entries.map(toolBlockLine).join("\n")}\n</tool_mentions>`;
 }
 
@@ -367,14 +259,14 @@ export function toolBlockText(entries: readonly Target[]): string {
  * opaque. Unresolved, excluded and out-of-catalog mentions stay literal, and
  * this function activates and declares nothing.
  */
-export function expandTools(
+function expandTools(
   message: string,
   resolved: readonly ResolvedMention[],
   catalogs: Catalogs,
   options: ExpandToolsOptions = {},
-): ExpandedMessage {
+): ExpandedText {
   const mentions = eligibleToolMentions(message, resolved);
-  if (mentions.length === 0) return { text: message };
+  if (mentions.length === 0) return { text: message, entries: [] };
 
   let text = message;
   for (const candidate of [...mentions].reverse()) {
@@ -382,8 +274,109 @@ export function expandTools(
     const { start, end } = candidate.mention.span;
     text = `${text.slice(0, start)}\`${targetKey(target)}\`${text.slice(end)}`;
   }
-  if (options.appendBlock === false) return { text };
-
   const entries = uniqueToolTargets(mentions, catalogs);
-  return { text: `${text}\n\n${toolBlockText(entries)}` };
+  if (options.appendBlock === false) return { text, entries };
+
+  return { text: `${text}\n\n${toolBlockText(entries)}`, entries };
+}
+
+/**
+ * Expand one message's prose at the context seam.
+ *
+ * Tool mentions expand inline first; then the leading role mention, after any
+ * native skill block, becomes the dispatch prefix. Escapes lose their backslash
+ * for the model only. Entries are the distinct tool targets for the block.
+ */
+function expandText(
+  text: string,
+  catalogs: Catalogs,
+  settings: Settings,
+  allowRole = true,
+): ExpandedText {
+  const hasToolTrigger = text.includes(settings.triggers.tool);
+  const hasRoleTrigger = text.includes(settings.triggers.role);
+  if (!hasToolTrigger && !hasRoleTrigger) {
+    return { text: unescapeExpandedText(text, settings), entries: [] };
+  }
+
+  const { mentions } = parse(text, triggerSpecs(settings));
+  const expandable = mentions.filter(
+    (mention) => mention.class === "tool" || mention.class === "role",
+  );
+  if (expandable.length === 0) {
+    return { text: unescapeExpandedText(text, settings), entries: [] };
+  }
+
+  const resolved = resolve(expandable, catalogs, settings);
+  let expandedText = text;
+  let entries: Target[] = [];
+  if (resolved.some((mention) => mention.mention.class === "tool")) {
+    const tools = expandTools(text, resolved, catalogs, { appendBlock: false });
+    expandedText = tools.text;
+    entries = tools.entries;
+  }
+
+  if (allowRole) {
+    expandedText = expandRoles(expandedText, resolved, catalogs).text;
+  }
+  return { text: unescapeExpandedText(expandedText, settings), entries };
+}
+
+/**
+ * Expand the user messages the model is about to receive.
+ *
+ * This is the context seam's one interface. It owns per-part expansion, the
+ * leading-role rule, one tool block after the last text part of a message, the
+ * deduplication of that block, model-facing unescaping and change detection.
+ * Non-user messages, non-text parts, and a message with nothing to expand are
+ * returned by reference. `undefined` means no message changed.
+ */
+export function expandContextMessages<T extends ContextMessage>(
+  messages: readonly T[],
+  catalogs: Catalogs,
+  settings: Settings,
+): T[] | undefined {
+  let changed = false;
+
+  const next = messages.map((message) => {
+    if (message.role !== "user" || message.content === undefined) return message;
+
+    if (typeof message.content === "string") {
+      const { text, entries } = expandText(message.content, catalogs, settings);
+      const rewritten = entries.length === 0 ? text : `${text}\n\n${toolBlockText(entries)}`;
+      if (rewritten === message.content) return message;
+      changed = true;
+      return { ...message, content: rewritten } as T;
+    }
+
+    let messageChanged = false;
+    const allEntries: Target[] = [];
+    let proseSeen = false;
+    const content = message.content.map((part) => {
+      if (!isTextPart(part)) return part;
+      const allowRole = !proseSeen;
+      if (hasProseAfterSkillBlock(part.text)) proseSeen = true;
+      const { text, entries } = expandText(part.text, catalogs, settings, allowRole);
+      allEntries.push(...entries);
+      if (text === part.text) return part;
+      messageChanged = true;
+      return { ...part, text };
+    });
+
+    const entries = dedupeToolTargets(allEntries);
+    if (entries.length > 0) {
+      const lastText = content.findLastIndex((part) => isTextPart(part));
+      const part = content[lastText];
+      if (part && isTextPart(part)) {
+        content[lastText] = { ...part, text: `${part.text}\n\n${toolBlockText(entries)}` };
+        messageChanged = true;
+      }
+    }
+
+    if (!messageChanged) return message;
+    changed = true;
+    return { ...message, content } as T;
+  });
+
+  return changed ? next : undefined;
 }
