@@ -61,7 +61,7 @@ src/pi/              the only code that knows pi
 
 src/index.ts         default extension entry
 test/                core fixtures + adapter suites (input, context,
-                     autocomplete, history, editor-frame, catalogs)
+                     autocomplete, history, frame/editor, catalogs)
                      + one wiring smoke test
 ```
 

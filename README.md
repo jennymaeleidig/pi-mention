@@ -546,7 +546,7 @@ npm run format
 ```
 
 The suite uses the Node test runner: pure grammar, resolver, expansion, colour,
-paint, picker and settings tests; editor-frame and history tests; and catalog
+paint, picker and settings tests; frame and editor tests; and catalog
 tests for skills, paths, tools and roles. There is also one wiring smoke test
 with a fake `ExtensionAPI`. There is no browser and no live pi session in the
 unit suite.
