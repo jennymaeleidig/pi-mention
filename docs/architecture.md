@@ -35,6 +35,7 @@ src/core/            no pi imports, no I/O
   document.ts        text + catalogs + url detector -> spans and lines
   colors.ts          resolved mentions -> colour spans
   paint.ts           one rendered row + spans -> insertion-only ANSI
+  frame.ts           rendered-frame proof and row painting
   picker.ts          trigger token + ranking
   selection.ts       picker class and selection history shape
   settings.ts        raw object -> settings + diagnostics
@@ -46,7 +47,7 @@ src/pi/              the only code that knows pi
   session-catalogs.ts one live Catalog set per extension instance
   input.ts           $ skill transform
   context.ts         % and & expansion
-  editor.ts          decorate-only editor wrapper
+  editor.ts          port probe, border capture, zentui/vim detection
   colours.ts         colour memo + URL detector adapter
   autocomplete.ts    one provider wrapper owning $, %, &
   history.ts         picker selection store for frecency
@@ -86,6 +87,8 @@ mentionDocument(text: string, catalogs: Catalogs, config: Settings,
 
 colourSpans(text: string, resolved: ResolvedMention[], config: Settings)
   -> ColourSpan[]
+
+paintFrame(options: PaintFrameOptions) -> string[]
 
 loadSettings(raw: unknown) -> { settings: Settings; diagnostics: Diagnostic[] }
 ```
@@ -255,8 +258,9 @@ Node test runner, no browser and no live pi session in the unit suite.
   and escape preservation, plus a composed `mentionDocument` test for spans,
   lines and path probes.
 - Fixture-driven catalog tests, one per target class, plus adapter suites for
-  input, context, autocomplete, history, editor framing, catalog wiring and the
-  one session Catalog construction.
+  input, context, autocomplete, history, catalog wiring and the one session
+  Catalog construction. The editor frame has a pure `paintFrame` suite and a
+  fake-editor suite that drives the real `installEditorColours` seam.
 - A colour-memo test that a live tool appearing mid-session recolours the same
   text, and path-catalog tests for the pure cache read and TTL revalidation.
 - Settings validation tests, including per-key fallback and diagnostics.

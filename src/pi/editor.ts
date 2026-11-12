@@ -1,12 +1,13 @@
 import { CustomEditor, type ExtensionUIContext, type Theme } from "@earendil-works/pi-coding-agent";
-import { paintRow, stripAnsi, type PaintWrap } from "../core/paint.ts";
+import { paintFrame } from "../core/frame.ts";
+import { type PaintWrap } from "../core/paint.ts";
 import type { ColourSpan } from "../core/types.ts";
 
 type Role = Parameters<Theme["fg"]>[0];
 type Wrap = PaintWrap;
 
 /** The private slice of pi-tui's Editor a decorator needs. Probed, never assumed. */
-type Port = {
+type EditorPort = {
   getLines(): string[];
   getPaddingX?(): number;
   render(width: number): string[];
@@ -34,7 +35,7 @@ function isZentuiEditor(editor: object): boolean {
 function innermost(editor: object): object {
   let current: object = editor;
   for (let hop = 0; hop < 4; hop++) {
-    if (typeof (current as Port).buildVisualLineMap === "function") return current;
+    if (typeof (current as EditorPort).buildVisualLineMap === "function") return current;
     const base = (current as { base?: unknown }).base;
     if (!base || typeof base !== "object") return current;
     current = base;
@@ -42,41 +43,19 @@ function innermost(editor: object): object {
   return current;
 }
 
-/**
- * True when `row` is the frame `expected`, allowing pi-vim-editor's mode
- * label on a border. Vim replaces a contiguous run of border dashes with its
- * status (`──── NORMAL ────`), so the changed cells in `expected` must all be
- * dashes and the corresponding cells in `row` must be a non-empty label with
- * no dashes. A title inserted into other border content is not the frame.
- */
-export function frameRowMatches(
-  row: string,
-  expected: string,
-  width: number,
-  allowVimLabel: boolean,
-): boolean {
-  if (row === expected) return true;
-  if (!allowVimLabel) return false;
-  const got = stripAnsi(row);
-  const want = stripAnsi(expected);
-  if (got.length !== width || want.length !== width) return false;
-  if (got.charAt(0) !== want.charAt(0)) return false;
-  if (got.charAt(got.length - 1) !== want.charAt(want.length - 1)) return false;
-
-  let start = -1;
-  let end = -1;
-  for (let i = 0; i < width; i++) {
-    if (got[i] === want[i]) continue;
-    if (start < 0) start = i;
-    else if (end !== i - 1) return false;
-    end = i;
-  }
-  if (start < 0) return false;
-  for (let i = start; i <= end; i++) {
-    if (want[i] !== "\u2500") return false;
-    if (got[i] === "\u2500") return false;
-  }
-  return true;
+/** True when the editor exposes the layout and border surface decoration needs. */
+function isDecoratable(editor: object): editor is EditorPort {
+  const port = editor as EditorPort;
+  return (
+    typeof port.render === "function" &&
+    typeof port.getLines === "function" &&
+    typeof port.buildVisualLineMap === "function" &&
+    typeof port.renderTopBorder === "function" &&
+    typeof port.renderBottomBorder === "function" &&
+    "lastWidth" in port &&
+    "scrollOffset" in port &&
+    "renderedVisibleLineCount" in port
+  );
 }
 
 /** True when an SGR prefix actually sets a foreground colour. */
@@ -109,20 +88,10 @@ function installDecoration(
   getTheme: () => Theme,
   spansForLines: (lines: string[]) => ColourSpan[][],
 ): boolean {
-  const port = editor as Port;
   const marked = editor as Record<symbol, unknown>;
   if (marked[DONE]) return true;
-  if (typeof port.render !== "function" || typeof port.getLines !== "function") return false;
-  if (typeof port.buildVisualLineMap !== "function") return false;
-  if (
-    typeof port.renderTopBorder !== "function" ||
-    typeof port.renderBottomBorder !== "function" ||
-    !("lastWidth" in port) ||
-    !("scrollOffset" in port) ||
-    !("renderedVisibleLineCount" in port)
-  ) {
-    return false;
-  }
+  if (!isDecoratable(editor)) return false;
+  const port = editor;
   Object.defineProperty(editor, DONE, { value: true });
 
   const render = port.render.bind(editor);
@@ -145,38 +114,21 @@ function installDecoration(
     const lines = render(width);
     const theme = getTheme();
     const layout = port.buildVisualLineMap?.(port.lastWidth ?? width);
-    const rows = port.renderedVisibleLineCount ?? 0;
-    const scroll = port.scrollOffset ?? 0;
-    if (!theme || !layout || rows <= 0 || lines.length < rows + 2) return lines;
-    // Refuse to touch anything that is not Pi's own frame: a framer may have
-    // rendered the base at another width, or replaced these rows. Vim is the
-    // one framer we compose with; it writes its mode label into the bottom
-    // border, so only that row may relax to a dash-run label.
-    const vim = VIM_EDITOR in port;
-    if (
-      !frameRowMatches(lines[0] ?? "", topLine, width, false) ||
-      !frameRowMatches(lines[rows + 1] ?? "", bottomLine, width, vim)
-    ) {
-      return lines;
-    }
+    if (!theme || !layout) return lines;
 
-    const perLine = spansForLines(port.getLines());
-    if (perLine.every((spans) => spans.length === 0)) return lines;
-    const padding = Math.min(port.getPaddingX?.() ?? 0, Math.max(0, Math.floor((width - 1) / 2)));
-
-    const out = [...lines];
-    for (let row = 0; row < rows; row++) {
-      const segment = layout[scroll + row];
-      if (!segment) continue;
-      const spans = perLine[segment.logicalLine]?.filter(
-        (span) => span.start < segment.startCol + segment.length && span.end > segment.startCol,
-      );
-      if (!spans || spans.length === 0) continue;
-      const line = lines[row + 1];
-      if (line === undefined) continue;
-      out[row + 1] = paintRow(line, padding, segment, spans, (role) => wrap(theme, role));
-    }
-    return out;
+    return paintFrame({
+      lines,
+      width,
+      top: topLine,
+      bottom: bottomLine,
+      layout,
+      rows: port.renderedVisibleLineCount ?? 0,
+      scroll: port.scrollOffset ?? 0,
+      padding: Math.min(port.getPaddingX?.() ?? 0, Math.max(0, Math.floor((width - 1) / 2))),
+      spansForLines: () => spansForLines(port.getLines()),
+      wrap: (role) => wrap(theme, role),
+      allowVimLabel: VIM_EDITOR in port,
+    });
   };
   return true;
 }
