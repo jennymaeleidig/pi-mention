@@ -12,8 +12,9 @@ Grammar: [mention-grammar.md](./mention-grammar.md). Expansion:
 One ESM package, TypeScript source published as-is, no build step, Node 22.
 
 - `pi` manifest points at `src/index.ts`.
-- Peer dependencies: `@earendil-works/pi-coding-agent ^1.5`,
-  `@earendil-works/pi-tui ^1.5`, `typebox`.
+- Peer dependencies: `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`
+  and `typebox` with the `"*"` range Pi expects for host-provided packages.
+  Dev dependencies pin `@earendil-works/pi-coding-agent ^1.5` for types.
 - Runtime dependencies: `linkify-it`, `tlds`, and
   `@earendil-works/pi-codemode` pinned exactly `1.5.2`.
 - Dev dependencies: TypeScript and the Node test runner.
@@ -91,25 +92,38 @@ The extension reads one top-level key:
     "ranking": {
       "strategy": "frecency",
       "pinned": { "skills": [], "tools": [], "roles": [] },
-      "projectSkillsFirst": false
+      "projectSkillsFirst": false,
     },
     "exclude": { "skills": [], "tools": [], "roles": [] },
     "colors": {
-      "skill": "mdHeading",
+      "skill": "syntaxNumber",
       "tool": "accent",
-      "role": "syntaxKeyword",
+      "role": "success",
       "path": "mdLinkUrl",
       "url": "mdLink",
       "unresolved": "warning",
-      "excluded": "dim"
+      "excluded": "dim",
     },
     "url": {
       "sourceExtensions": [
-        ".ts", ".tsx", ".js", ".jsx", ".md", ".py", ".sh", ".json",
-        ".yaml", ".yml", ".toml", ".rs", ".go", ".css", ".html"
-      ]
-    }
-  }
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".md",
+        ".py",
+        ".sh",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".rs",
+        ".go",
+        ".css",
+        ".html",
+      ],
+    },
+  },
 }
 ```
 
@@ -121,6 +135,9 @@ The extension reads one top-level key:
 - `ranking.strategy` is one of `frecency`, `recent`, `frequent`,
   `alphabetical`, `sourceOrder`.
 - Colour values are safe theme foreground roles. `*Bg` roles are invalid.
+- The defaults are palette C from the accepted prototype: purple skill, cyan
+  path, orange tool, green role, pink URL, yellow unresolved. Six distinct
+  hues on `monokai-pro`.
 - `typebox` validates the `piMention` object in code; there is no checked-in
   `config.schema.json`.
 

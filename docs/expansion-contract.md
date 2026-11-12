@@ -118,25 +118,25 @@ The user selected the `general` role but gave no task. Do not call the `subagent
 
 `M` is the expanded message; `T` is the transcript.
 
-| Input | Target | M | T |
-| --- | --- | --- | --- |
-| `$tdd please review this` | skill `tdd` | skill block + `\n\nplease review this` | `[skill] tdd` row + `please review this` |
-| `please $tdd this` | skill `tdd` | skill block + `\n\nplease this` | `[skill] tdd` row + `please this` |
-| `$tdd` | skill `tdd` | skill block | `[skill] tdd` row |
-| `$nope` | none | `$nope` | `$nope` |
-| `$tdd $other` | skill `tdd` | skill block + `\n\n$other` | `[skill] tdd` row + `$other` |
-| `%bash list files` | tool `bash`, direct | `` `bash` list files `` + tool block | `%bash list files` |
-| `%kagi:kagi_search_fetch cats` | tool, indirect | `` `mcp__kagi__kagi_search_fetch` cats `` + tool block | `%kagi:kagi_search_fetch cats` |
-| `%bash %bash` | tool `bash` | `` `bash` `bash` `` + one tool block entry | `%bash %bash` |
-| `%bash, please` | tool `bash` | `` `bash`, please `` + tool block | `%bash, please` |
-| `&general summarise this` | role `general` | dispatch prefix + `\n\nsummarise this` | `&general summarise this` |
-| `please &general summarise this` | role `general` | unchanged | `please &general summarise this` |
-| `&general` | role `general` | no-task dispatch text | `&general` |
-| `&general x &general y` | role `general` | dispatch prefix + `\n\nx &general y` | unchanged |
-| `\$PATH` | none | `$PATH` | `\$PATH` |
-| fenced `%bash` | none | unchanged | unchanged |
-| `$tdd %read this` | skill + tool | skill block + `\n\n` + `` `read` this `` + tool block | `[skill] tdd` row + `%read this` |
-| `$tdd &general do it` | skill + role | skill block + `\n\n` + dispatch prefix + `\n\ndo it` | `[skill] tdd` row + `&general do it` |
+| Input                            | Target              | M                                                      | T                                        |
+| -------------------------------- | ------------------- | ------------------------------------------------------ | ---------------------------------------- |
+| `$tdd please review this`        | skill `tdd`         | skill block + `\n\nplease review this`                 | `[skill] tdd` row + `please review this` |
+| `please $tdd this`               | skill `tdd`         | skill block + `\n\nplease this`                        | `[skill] tdd` row + `please this`        |
+| `$tdd`                           | skill `tdd`         | skill block                                            | `[skill] tdd` row                        |
+| `$nope`                          | none                | `$nope`                                                | `$nope`                                  |
+| `$tdd $other`                    | skill `tdd`         | skill block + `\n\n$other`                             | `[skill] tdd` row + `$other`             |
+| `%bash list files`               | tool `bash`, direct | `` `bash` list files `` + tool block                   | `%bash list files`                       |
+| `%kagi:kagi_search_fetch cats`   | tool, indirect      | `` `mcp__kagi__kagi_search_fetch` cats `` + tool block | `%kagi:kagi_search_fetch cats`           |
+| `%bash %bash`                    | tool `bash`         | `` `bash` `bash` `` + one tool block entry             | `%bash %bash`                            |
+| `%bash, please`                  | tool `bash`         | `` `bash`, please `` + tool block                      | `%bash, please`                          |
+| `&general summarise this`        | role `general`      | dispatch prefix + `\n\nsummarise this`                 | `&general summarise this`                |
+| `please &general summarise this` | role `general`      | unchanged                                              | `please &general summarise this`         |
+| `&general`                       | role `general`      | no-task dispatch text                                  | `&general`                               |
+| `&general x &general y`          | role `general`      | dispatch prefix + `\n\nx &general y`                   | unchanged                                |
+| `\$PATH`                         | none                | `$PATH`                                                | `\$PATH`                                 |
+| fenced `%bash`                   | none                | unchanged                                              | unchanged                                |
+| `$tdd %read this`                | skill + tool        | skill block + `\n\n` + `` `read` this `` + tool block  | `[skill] tdd` row + `%read this`         |
+| `$tdd &general do it`            | skill + role        | skill block + `\n\n` + dispatch prefix + `\n\ndo it`   | `[skill] tdd` row + `&general do it`     |
 
 ## Seam
 

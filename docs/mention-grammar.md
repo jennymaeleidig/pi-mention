@@ -11,13 +11,13 @@ not the expansion contract: what the model receives is settled separately.
 A mention is `<trigger><label>` with no closing delimiter. A bare trigger is
 never a mention: it may open the picker, but it stays literal on send.
 
-| Token class | Trigger | Label | Expandable |
-| --- | --- | --- | --- |
-| Skill | `$` | `[A-Za-z0-9][A-Za-z0-9._-]*` | yes |
-| Path | `@` | a non-whitespace run, or `@"..."` for a path containing spaces | no |
-| Tool | `%` | one or two segments of `[A-Za-z0-9][A-Za-z0-9._-]*`, separated by `:` | yes |
-| Agent role | `&` | `[A-Za-z0-9][A-Za-z0-9._-]*` | yes |
-| URL | none | whatever the URL detector matches | no |
+| Token class | Trigger | Label                                                                 | Expandable |
+| ----------- | ------- | --------------------------------------------------------------------- | ---------- |
+| Skill       | `$`     | `[A-Za-z0-9][A-Za-z0-9._-]*`                                          | yes        |
+| Path        | `@`     | a non-whitespace run, or `@"..."` for a path containing spaces        | no         |
+| Tool        | `%`     | one or two segments of `[A-Za-z0-9][A-Za-z0-9._-]*`, separated by `:` | yes        |
+| Agent role  | `&`     | `[A-Za-z0-9][A-Za-z0-9._-]*`                                          | yes        |
+| URL         | none    | whatever the URL detector matches                                     | no         |
 
 - Labels are matched **case-sensitively**. The picker's fuzzy matching is
   case-insensitive.
@@ -41,18 +41,18 @@ A trigger after a word character does not start a mention. The boundary is the
 same one pi's editor uses for natural autocomplete triggering, so the colourer,
 the picker and the expansion agree.
 
-| Input | Result |
-| --- | --- |
-| `100%foo` | literal; `%` follows a digit |
-| `me@example.com` | literal; `@` follows a word character |
-| `$PATH` | skill mention, almost certainly unresolved |
-| `\$PATH` | literal `$PATH` |
-| `&&` | literal; `&` is not a valid label start |
-| `&general` | agent-role mention |
-| `(%read)` | tool mention inside brackets |
-| `"$tdd"` | skill mention after a quote |
-| `x$tdd` | literal |
-| `100 %foo` | tool mention; the space is a boundary |
+| Input            | Result                                     |
+| ---------------- | ------------------------------------------ |
+| `100%foo`        | literal; `%` follows a digit               |
+| `me@example.com` | literal; `@` follows a word character      |
+| `$PATH`          | skill mention, almost certainly unresolved |
+| `\$PATH`         | literal `$PATH`                            |
+| `&&`             | literal; `&` is not a valid label start    |
+| `&general`       | agent-role mention                         |
+| `(%read)`        | tool mention inside brackets               |
+| `"$tdd"`         | skill mention after a quote                |
+| `x$tdd`          | literal                                    |
+| `100 %foo`       | tool mention; the space is a boundary      |
 
 ## Terminator and trailing punctuation
 
@@ -60,15 +60,15 @@ The label is the **longest resolving prefix of the token**. Only prefixes that
 end at the token end or immediately before a punctuation character are eligible,
 so a label is never silently truncated in the middle of a word.
 
-| Input | Resolves as | Leftover |
-| --- | --- | --- |
-| `%bash, please` | `%bash` | `, please` |
-| `$tdd?` | `$tdd` | `?` |
-| `@src/foo.ts.` | `@src/foo.ts` when that file exists | `.` |
-| `@src/foo.ts` | the whole path | — |
-| `%bashfoo` | unresolved; `bash` is not eligible because `f` is a label character | — |
-| `%bash:` | incomplete chain, unresolved | — |
-| `%unknown,` | unresolved as a whole token | — |
+| Input           | Resolves as                                                         | Leftover   |
+| --------------- | ------------------------------------------------------------------- | ---------- |
+| `%bash, please` | `%bash`                                                             | `, please` |
+| `$tdd?`         | `$tdd`                                                              | `?`        |
+| `@src/foo.ts.`  | `@src/foo.ts` when that file exists                                 | `.`        |
+| `@src/foo.ts`   | the whole path                                                      | —          |
+| `%bashfoo`      | unresolved; `bash` is not eligible because `f` is a label character | —          |
+| `%bash:`        | incomplete chain, unresolved                                        | —          |
+| `%unknown,`     | unresolved as a whole token                                         | —          |
 
 If no eligible prefix resolves, the whole token is one unresolved span. A path
 that genuinely ends in punctuation wins when the file exists, because the whole
