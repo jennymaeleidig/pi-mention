@@ -28,6 +28,10 @@ _Avoid_: Name, id, alias, key
 The thing a label resolves to: a skill, path, tool, agent role, or URL.
 _Avoid_: Entity, item, entry, candidate
 
+**Registered name**:
+The canonical name a target is registered under, when the catalog reports one; otherwise the label serves. A tool's registered name, or a skill's `skill:` command name.
+_Avoid_: Internal name, full name, id
+
 **Expandable**:
 A property of a token class whose mentions can change the expanded message. Skills, tools and agent roles are expandable; paths and URLs are not.
 _Avoid_: Active, live, actionable

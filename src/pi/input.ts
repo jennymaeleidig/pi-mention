@@ -7,7 +7,8 @@ import {
 import { expand, firstResolvedSkill, skillBlockBounds } from "../core/expand.ts";
 import { parse, triggerSpecs } from "../core/grammar.ts";
 import { resolve } from "../core/resolve.ts";
-import type { Catalogs, Settings, SkillSource, Target } from "../core/types.ts";
+import { sameTarget } from "../core/target.ts";
+import type { Catalogs, Settings, SkillSource } from "../core/types.ts";
 import { liveSkillEntries, type SkillEntry } from "./catalogs/skills.ts";
 
 async function readSkill(entry: SkillEntry): Promise<SkillSource | undefined> {
@@ -22,10 +23,6 @@ async function readSkill(entry: SkillEntry): Promise<SkillSource | undefined> {
   } catch {
     return undefined;
   }
-}
-
-function sameTarget(a: Target, b: Target): boolean {
-  return a.label === b.label && a.name === b.name;
 }
 
 function notifyFailure(ctx: ExtensionContext, name: string): void {

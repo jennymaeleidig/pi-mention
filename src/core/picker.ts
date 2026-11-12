@@ -1,5 +1,6 @@
 import { parse, type TriggerSpec } from "./grammar.ts";
 import type { PickerClass, SelectionRecord } from "./selection.ts";
+import { historyRecord } from "./target.ts";
 import type { Settings, Target } from "./types.ts";
 
 /** One trigger token ending at the cursor, with its query and full prefix. */
@@ -81,20 +82,12 @@ interface IndexedTarget {
 
 const DAY_MS = 86_400_000;
 
-function recordFor(
-  target: Target,
-  history: Readonly<Record<string, SelectionRecord>>,
-): SelectionRecord | undefined {
-  const byName = target.name === undefined ? undefined : history[target.name];
-  return byName ?? history[target.label];
-}
-
 function recency(target: Target, history: Readonly<Record<string, SelectionRecord>>): number {
-  return recordFor(target, history)?.lastSelectedAt ?? 0;
+  return historyRecord(target, history)?.lastSelectedAt ?? 0;
 }
 
 function frequency(target: Target, history: Readonly<Record<string, SelectionRecord>>): number {
-  return recordFor(target, history)?.count ?? 0;
+  return historyRecord(target, history)?.count ?? 0;
 }
 
 function frecency(
@@ -102,7 +95,7 @@ function frecency(
   history: Readonly<Record<string, SelectionRecord>>,
   now: number,
 ): number {
-  const record = recordFor(target, history);
+  const record = historyRecord(target, history);
   if (!record || record.count <= 0) return 0;
   const ageDays = Math.max(0, now - record.lastSelectedAt) / DAY_MS;
   return record.count / (1 + ageDays / 30);

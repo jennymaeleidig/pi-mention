@@ -8,6 +8,7 @@ import {
 import { isLabel, isToolLabel, scanMentionEnd, type TriggerSpec } from "../core/grammar.ts";
 import { findPickerToken, orderMatches, rankTargets } from "../core/picker.ts";
 import { isExcluded } from "../core/resolve.ts";
+import { targetKey } from "../core/target.ts";
 import type { PickerClass, SelectionHistory } from "../core/selection.ts";
 import type { Catalogs, Settings, Target } from "../core/types.ts";
 import { SKILL_COMMAND_PREFIX } from "./catalogs/skills.ts";
@@ -180,7 +181,7 @@ export function createMentionAutocomplete(
 
       const now = options.now?.() ?? Date.now();
       if (picked) {
-        options.history.record(provider.class, picked.target.name ?? picked.target.label, now);
+        options.history.record(provider.class, targetKey(picked.target), now);
       } else {
         const label = item.value.startsWith(provider.trigger)
           ? item.value.slice(provider.trigger.length)

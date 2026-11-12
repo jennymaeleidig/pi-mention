@@ -1,4 +1,5 @@
 import { findCodeRanges, inRanges } from "./grammar.ts";
+import { targetKey } from "./target.ts";
 import type {
   Catalogs,
   ExpandOptions,
@@ -263,11 +264,6 @@ export function expandRoles(
       ? `${before}${roleDispatchPrefix(name)}\n\n${task}`
       : `${before}${roleNoTaskText(name)}`,
   };
-}
-
-/** The registered name, falling back to the label a user typed. */
-export function targetKey(target: Target): string {
-  return target.name ?? target.label;
 }
 
 /**
