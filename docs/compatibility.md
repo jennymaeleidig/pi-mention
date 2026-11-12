@@ -101,10 +101,10 @@ Details behind the columns:
 - **Colours.** A prompt with `$wayfinder %read &general
 @docs/mention-grammar.md https://example.com` plus `$nope %nope &nope
 @no/such/path` produced the palette-C codes above in every working order.
-- **Cursor.** In INSERT, left/right over a token kept the span colour on both
-  sides of the reverse-video cursor. A cursor on `😀` did not split the
-  surrogate pair. In NORMAL, `0`, `l`, `w`, `$` and `h` moved through and onto
-  coloured tokens without changing their text.
+- **Cursor.** In INSERT, left/right over a token kept the token colour and the
+  hardware cursor; no fake reverse-video cursor was left behind. A cursor on
+  `😀` did not split the surrogate pair. In NORMAL, `0`, `l`, `w`, `$` and `h`
+  moved through and onto coloured tokens without changing their text.
 - **Selection.** Stock TUI and both zentui styles have no keyboard visual
   mode; selection is the TUI's mouse drag. Pressing on `$wayfinder`, dragging
   over it and releasing left reverse video on the purple foreground and
@@ -223,9 +223,17 @@ frame, a label over non-dash content, two changed runs and the strict top
 border. `test/paint.test.ts` covers `stripAnsi` for CSI, OSC/APC and
 unterminated strings.
 
+The paint layer also closes a colour span **before** an escape sequence rather
+than reopening after it. That keeps Pi's zero-width hardware-cursor marker
+immediately adjacent to the fake-cursor start marker, so the TUI drops the fake
+cursor and positions the terminal cursor. Before this fix, the inserted colour
+sequences broke that adjacency and INSERT showed a reverse-video block instead
+of the configured bar. `test/paint.test.ts` now asserts the marker adjacency at
+the end of a token and mid-token.
+
 ## Checks
 
-- `npm test`: 169 passing (162 before the fix, plus 7 frame and escape tests).
+- `npm test`: 174 passing (169 before the cursor-marker fix, plus 5 paint tests).
 - `npm run typecheck`: clean.
 - `npm run format:check`: clean.
 
