@@ -10,7 +10,7 @@ test("the entry exposes only its default factory", () => {
   assert.deepEqual(Object.keys(entry), ["default"]);
 });
 
-test("the extension registers only its session_start handler", () => {
+test("the extension registers the input transform and session_start handler", () => {
   const registrations: string[] = [];
   const pi = {
     on: (name: string) => {
@@ -21,7 +21,7 @@ test("the extension registers only its session_start handler", () => {
 
   piMention(pi);
 
-  assert.deepEqual(registrations, ["session_start"]);
+  assert.deepEqual(registrations, ["input", "context", "session_start"]);
 });
 
 test("session_start warns on every call about a broken piMention", () => {

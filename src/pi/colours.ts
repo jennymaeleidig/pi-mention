@@ -1,21 +1,12 @@
 import { colourSpans } from "../core/colors.ts";
-import { parse, type TriggerSpec } from "../core/grammar.ts";
+import { parse, triggerSpecs } from "../core/grammar.ts";
 import { resolve } from "../core/resolve.ts";
 import type { Catalogs, ColourSpan, Settings } from "../core/types.ts";
 import { detectUrls } from "./catalogs/urls.ts";
 
-function specsFor(settings: Settings): TriggerSpec[] {
-  return [
-    { class: "skill", trigger: settings.triggers.skill },
-    { class: "path", trigger: "@" },
-    { class: "tool", trigger: settings.triggers.tool },
-    { class: "role", trigger: settings.triggers.role },
-  ];
-}
-
 /** Colour one logical text and project the spans onto its lines. */
 export function colourLines(text: string, catalogs: Catalogs, settings: Settings): ColourSpan[][] {
-  const { mentions, codeRanges } = parse(text, specsFor(settings));
+  const { mentions, codeRanges } = parse(text, triggerSpecs(settings));
   const resolved = resolve(mentions, catalogs, settings);
   const urls = detectUrls(
     text,

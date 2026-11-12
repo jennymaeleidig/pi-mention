@@ -1,4 +1,4 @@
-import type { Mention, Range, TriggerSpec } from "./types.ts";
+import type { Mention, Range, Settings, TriggerSpec } from "./types.ts";
 
 export type { TriggerSpec };
 
@@ -203,4 +203,14 @@ export function scanMentionEnd(
 ): number {
   const labelStart = start + 1;
   return tokenClass === "tool" ? scanTool(text, labelStart) : scanLabel(text, labelStart);
+}
+
+/** Parser specs for the effective trigger configuration; the path trigger stays at `@`. */
+export function triggerSpecs(settings: Settings): TriggerSpec[] {
+  return [
+    { class: "skill", trigger: settings.triggers.skill },
+    { class: "path", trigger: "@" },
+    { class: "tool", trigger: settings.triggers.tool },
+    { class: "role", trigger: settings.triggers.role },
+  ];
 }

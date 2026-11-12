@@ -1,11 +1,13 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { installAutocomplete } from "./autocomplete.ts";
+import { installContextEscapes } from "./context.ts";
 import { pathCatalog } from "./catalogs/paths.ts";
 import { roleCatalog } from "./catalogs/roles.ts";
 import { skillCatalog } from "./catalogs/skills.ts";
 import { toolCatalog } from "./catalogs/tools.ts";
 import { spansForLinesFactory } from "./colours.ts";
 import { installEditorColours } from "./editor.ts";
+import { installSkillInput } from "./input.ts";
 import { readSettings, settingsWarning, type LoadedSettings } from "./settings.ts";
 
 /**
@@ -19,6 +21,9 @@ import { readSettings, settingsWarning, type LoadedSettings } from "./settings.t
 export function register(pi: ExtensionAPI): void {
   const loaded: LoadedSettings = readSettings(pi);
   let installed = false;
+
+  installSkillInput(pi, loaded.settings);
+  installContextEscapes(pi, loaded.settings);
 
   pi.on("session_start", (_event, ctx) => {
     if (loaded.diagnostics.length > 0) {
