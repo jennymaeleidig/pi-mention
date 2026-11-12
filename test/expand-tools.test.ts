@@ -67,7 +67,7 @@ const catalogs: Catalogs = {
     inactiveDeferred,
   ],
   roles: [],
-  paths: { has: () => false },
+  paths: { has: () => false, probe: () => {} },
 };
 
 const directLine = `- \`read\` — call it directly. Signature: ${READ_SIGNATURE}`;

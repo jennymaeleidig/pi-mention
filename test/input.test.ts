@@ -11,6 +11,7 @@ import {
   type InputEventResult,
 } from "@earendil-works/pi-coding-agent";
 import { installSkillInput } from "../src/pi/input.ts";
+import { createSessionCatalogs } from "../src/pi/session-catalogs.ts";
 import { defaultSettings } from "../src/core/settings.ts";
 import type { Settings } from "../src/core/types.ts";
 
@@ -32,7 +33,7 @@ function setup(commands: () => Command[], settings: Settings = defaultSettings()
     getCommands: commands,
   } as unknown as ExtensionAPI;
 
-  installSkillInput(pi, settings);
+  installSkillInput(pi, settings, createSessionCatalogs(pi, settings, { cwd: process.cwd() }));
 
   return async (
     text: string,

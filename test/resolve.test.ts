@@ -27,7 +27,7 @@ const catalogs: Catalogs = {
     },
   ],
   roles: [{ class: "role", label: "general" }],
-  paths: { has: (label) => paths.has(label) },
+  paths: { has: (label) => paths.has(label), probe: () => {} },
 };
 
 function resolveText(text: string, settings: Settings = defaultSettings()) {

@@ -7,9 +7,9 @@ import {
 import { expand, firstResolvedSkill, skillBlockBounds } from "../core/expand.ts";
 import { parse, triggerSpecs } from "../core/grammar.ts";
 import { resolve } from "../core/resolve.ts";
-import { sameTarget } from "../core/target.ts";
-import type { Catalogs, Settings, SkillSource } from "../core/types.ts";
-import { liveSkillEntries, type SkillEntry } from "./catalogs/skills.ts";
+import type { Settings, SkillSource } from "../core/types.ts";
+import type { SkillEntry } from "./catalogs/skills.ts";
+import type { SessionCatalogs } from "./session-catalogs.ts";
 
 async function readSkill(entry: SkillEntry): Promise<SkillSource | undefined> {
   try {
@@ -37,13 +37,18 @@ function notifyFailure(ctx: ExtensionContext, name: string): void {
 /**
  * Register the `$skill` input seam.
  *
- * Skills come from the live command list at send time. The adapter reads the
+ * Skills come from the live command list at send time. The adapter asks the
+ * session catalogs for the live entry behind a resolved target, reads the
  * SKILL.md and strips its frontmatter; the pure expander builds the canonical
  * block. Unresolved, excluded, later, missing or unrepresentable skills stay
  * literal, an existing native block is left untouched, and the handler never
  * throws into pi's input pipeline.
  */
-export function installSkillInput(pi: ExtensionAPI, settings: Settings): void {
+export function installSkillInput(
+  pi: ExtensionAPI,
+  settings: Settings,
+  session: SessionCatalogs,
+): void {
   pi.on("input", async (event, ctx) => {
     const trigger = settings.triggers.skill;
     if (!event.text.includes(trigger)) return { action: "continue" };
@@ -54,28 +59,17 @@ export function installSkillInput(pi: ExtensionAPI, settings: Settings): void {
     // one or rewrite the block or its prose.
     if (skillBlockBounds(event.text)) return { action: "continue" };
 
-    const entries = liveSkillEntries(pi, settings.ranking.projectSkillsFirst);
-    if (entries.length === 0) return { action: "continue" };
-
     const { mentions } = parse(event.text, triggerSpecs(settings));
     const skills = mentions.filter((mention) => mention.class === "skill");
     if (skills.length === 0) return { action: "continue" };
 
-    const catalogs: Catalogs = {
-      skills: entries.map((entry) => entry.target),
-      tools: [],
-      roles: [],
-      paths: { has: () => false },
-    };
-    const resolved = resolve(skills, catalogs, settings);
+    const resolved = resolve(skills, session.catalogs, settings);
     const selected = firstResolvedSkill(resolved)?.target;
-    const entry = selected
-      ? entries.find((candidate) => sameTarget(candidate.target, selected))
-      : undefined;
+    const entry = selected ? session.skillEntry(selected) : undefined;
     const source = entry ? await readSkill(entry) : undefined;
 
     const expanded = expand(event.text, resolved, {
-      skillSource: (target) => (selected && sameTarget(target, selected) ? source : undefined),
+      skillSource: () => source,
     });
     if (!expanded.skillBlock) {
       if (expanded.skillFailure) notifyFailure(ctx, expanded.skillFailure.name);

@@ -10,6 +10,7 @@ import type {
   ToolInfo,
 } from "@earendil-works/pi-coding-agent";
 import { installContextExpansion } from "../src/pi/context.ts";
+import { createSessionCatalogs } from "../src/pi/session-catalogs.ts";
 import { defaultSettings } from "../src/core/settings.ts";
 import type { Settings } from "../src/core/types.ts";
 import { dispatch, noTask } from "./fixtures/role-text.ts";
@@ -85,10 +86,12 @@ function setup(
     getActiveTools: () => active,
   } as unknown as ExtensionAPI;
 
-  installContextExpansion(pi, context.settings ?? defaultSettings(), {
-    ...(context.cwd ? { cwd: context.cwd } : {}),
+  const settings = context.settings ?? defaultSettings();
+  const session = createSessionCatalogs(pi, settings, {
+    cwd: context.cwd ?? process.cwd(),
     ...(context.agentDir ? { agentDir: context.agentDir } : {}),
   });
+  installContextExpansion(pi, settings, session.catalogs);
 
   return (messages: ContextEvent["messages"]) => {
     assert.ok(handler);

@@ -11,16 +11,6 @@ import {
 import { parse, triggerSpecs } from "../core/grammar.ts";
 import { resolve } from "../core/resolve.ts";
 import type { Catalogs, Settings, Target } from "../core/types.ts";
-import { roleCatalog } from "./catalogs/roles.ts";
-import { toolCatalog } from "./catalogs/tools.ts";
-
-/** Adapter inputs for role discovery: the session cwd and an optional agent dir. */
-export interface ContextExpansionOptions {
-  /** Session working directory; defaults to `process.cwd()`. */
-  cwd?: string;
-  /** Test seam: isolates role discovery from the user's real agent directory. */
-  agentDir?: string;
-}
 
 interface ExpandedText {
   text: string;
@@ -37,38 +27,19 @@ function hasProseAfterSkillBlock(text: string): boolean {
  * Register the context seam for `%tool` and `&role` expansion and
  * model-facing escapes.
  *
- * The live tool catalog is read on every context event, synchronously, so a
- * server that connected between requests can resolve its tools. Roles are read
- * once per extension instance from the user and project agent directories. Tool
- * mentions expand inline first; then the leading role mention, after any native
- * skill block, becomes the dispatch prefix. The persisted transcript is
- * untouched, and nothing is activated or declared. Escapes lose their backslash
- * for the model only.
+ * The live tool catalog and cached role catalog arrive from the session
+ * catalogs. Tool mentions expand inline first; then the leading role mention,
+ * after any native skill block, becomes the dispatch prefix. The persisted
+ * transcript is untouched, and nothing is activated or declared. Escapes lose
+ * their backslash for the model only.
  */
 export function installContextExpansion(
   pi: ExtensionAPI,
   settings: Settings,
-  options: ContextExpansionOptions = {},
+  catalogs: Catalogs,
 ): void {
-  const cwd = options.cwd ?? process.cwd();
-  let roleEntries: Target[] | undefined;
-
   pi.on("context", (event) => {
     let changed = false;
-    let catalogs: Catalogs | undefined;
-    let toolEntries: Target[] | undefined;
-
-    const liveCatalogs = (): Catalogs =>
-      (catalogs ??= {
-        skills: [],
-        get tools() {
-          return (toolEntries ??= toolCatalog(pi));
-        },
-        get roles() {
-          return (roleEntries ??= roleCatalog(cwd, options.agentDir));
-        },
-        paths: { has: () => false },
-      });
 
     const expandText = (text: string, allowRole = true): ExpandedText => {
       const hasToolTrigger = text.includes(settings.triggers.tool);
@@ -77,7 +48,6 @@ export function installContextExpansion(
         return { text: unescapeExpandedText(text, settings), entries: [] };
       }
 
-      const live = liveCatalogs();
       const { mentions } = parse(text, triggerSpecs(settings));
       const expandable = mentions.filter(
         (mention) => mention.class === "tool" || mention.class === "role",
@@ -86,16 +56,16 @@ export function installContextExpansion(
         return { text: unescapeExpandedText(text, settings), entries: [] };
       }
 
-      const resolved = resolve(expandable, live, settings);
+      const resolved = resolve(expandable, catalogs, settings);
       let expandedText = text;
       let entries: Target[] = [];
       if (resolved.some((mention) => mention.mention.class === "tool")) {
-        entries = toolBlockEntries(text, resolved, live);
-        expandedText = expandTools(text, resolved, live, { appendBlock: false }).text;
+        entries = toolBlockEntries(text, resolved, catalogs);
+        expandedText = expandTools(text, resolved, catalogs, { appendBlock: false }).text;
       }
 
       if (allowRole) {
-        expandedText = expandRoles(expandedText, resolved, live).text;
+        expandedText = expandRoles(expandedText, resolved, catalogs).text;
       }
       return { text: unescapeExpandedText(expandedText, settings), entries };
     };

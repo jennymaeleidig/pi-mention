@@ -14,7 +14,7 @@ const catalogs: Catalogs = {
     { class: "role", label: "general", name: "general", description: "General-purpose subagent." },
     { class: "role", label: "review", name: "review", description: "Review work." },
   ],
-  paths: { has: () => false },
+  paths: { has: () => false, probe: () => {} },
 };
 
 function expanded(

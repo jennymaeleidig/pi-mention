@@ -16,7 +16,7 @@ const catalogs: Catalogs = {
   ],
   tools: [],
   roles: [],
-  paths: { has: (label) => paths.has(label) },
+  paths: { has: (label) => paths.has(label), probe: () => {} },
 };
 
 const sources = new Map<string, SkillSource>([

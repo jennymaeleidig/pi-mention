@@ -40,6 +40,7 @@ src/core/            no pi imports, no I/O
 
 src/pi/              the only code that knows pi
   index.ts           registration and wiring
+  session-catalogs.ts one live Catalog set per extension instance
   input.ts           $ skill transform
   context.ts         % and & expansion
   editor.ts          decorate-only editor wrapper
@@ -112,11 +113,15 @@ dispatch prefix and leaves the rest as the task; a role with only whitespace and
 punctuation after it gets the no-task instruction instead. Mid-sentence, later,
 unresolved and excluded roles stay literal, and no role body is read or inlined.
 
-`catalogs` is plain data built by the adapters. `resolve` itself does no I/O,
-registers nothing, activates a tool, or edits the prompt's tool section. Paths
-are the one catalog backed by the filesystem: `paths.has` is a pure cache read,
-and `paths.probe` is the explicit I/O edge the colour adapter calls before
-typing a path token. A probe dedupes in-flight stats, caches both hits and
+`catalogs` is plain data built by the adapters. `createSessionCatalogs` constructs
+the one live Catalog set per extension instance: live skill and tool getters, the
+cached role catalog, the filesystem-backed path catalog and the tool revision.
+The input, context, colour and picker seams read that set; no seam rebuilds a
+partial `Catalogs` with stubbed fields. `resolve` itself does no I/O, registers
+nothing, activates a tool, or edits the prompt's tool section. Paths are the one
+catalog backed by the filesystem: `paths.has` is a pure cache read, and
+`paths.probe` is the explicit I/O edge the colour adapter calls before typing a
+path token. A probe dedupes in-flight stats, caches both hits and
 misses with a timestamp, and revalidates after a short TTL (one second by
 default) so a file that appears later can become a hit. The picker and colour
 layer read `catalogs.tools` through a live getter, so a tool that appears
@@ -245,7 +250,8 @@ Node test runner, no browser and no live pi session in the unit suite.
 - Pure `colourSpans` and `paintRow` tests, including cursor-grapheme handling
   and escape preservation.
 - Fixture-driven catalog tests, one per target class, plus adapter suites for
-  input, context, autocomplete, history, editor framing and catalog wiring.
+  input, context, autocomplete, history, editor framing, catalog wiring and the
+  one session Catalog construction.
 - A colour-memo test that a live tool appearing mid-session recolours the same
   text, and path-catalog tests for the pure cache read and TTL revalidation.
 - Settings validation tests, including per-key fallback and diagnostics.

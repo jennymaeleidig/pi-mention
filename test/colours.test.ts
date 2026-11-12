@@ -8,7 +8,7 @@ const catalogs: Catalogs = {
   skills: [{ class: "skill", label: "wayfinder" }],
   tools: [{ class: "tool", label: "read", name: "read" }],
   roles: [{ class: "role", label: "general" }],
-  paths: { has: (label) => label === "docs/mention-grammar.md" },
+  paths: { has: (label) => label === "docs/mention-grammar.md", probe: () => {} },
 };
 const settings = defaultSettings();
 
