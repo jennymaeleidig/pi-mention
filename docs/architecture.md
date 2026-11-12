@@ -29,6 +29,7 @@ src/core/            no pi imports, no I/O
   resolve.ts         label + catalog -> target
   expand.ts          message + resolved + config -> expanded message
   colors.ts          text + resolved + config -> colour spans
+  paint.ts           one rendered row + spans -> insertion-only ANSI
   settings.ts        raw object -> settings + diagnostics
   types.ts           Mention, Target, ResolvedMention, ColourSpan, Settings
 
@@ -37,6 +38,7 @@ src/pi/              the only code that knows pi
   input.ts           $ skill transform
   context.ts         % and & expansion
   editor.ts          decorate-only editor wrapper
+  colours.ts         parse + resolve + URLs -> per-line colour spans
   autocomplete.ts    one provider wrapper owning $, %, &
   settings.ts        read pi.getSettings().piMention
   catalogs/
@@ -170,7 +172,8 @@ hatch. The README states both facts.
 Node test runner, no browser and no live pi session in the unit suite.
 
 - Golden tests for every grammar example and every row of the expansion table.
-- Pure `colourSpans` tests, including cursor-grapheme handling and escape preservation.
+- Pure `colourSpans` and `paintRow` tests, including cursor-grapheme handling
+  and escape preservation.
 - Fixture-driven catalog tests, one per target class.
 - Settings validation tests, including per-key fallback and diagnostics.
 - One wiring smoke test with a fake `ExtensionAPI` that drives the real

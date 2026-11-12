@@ -10,21 +10,25 @@ test("the entry exposes only its default factory", () => {
   assert.deepEqual(Object.keys(entry), ["default"]);
 });
 
-test("the extension entry is inert", () => {
+test("the extension registers only its session_start handler", () => {
   const touched: string[] = [];
+  const events: unknown[] = [];
   const pi = new Proxy(
     {},
     {
       get: (_target, key) => {
         touched.push(String(key));
-        return () => {};
+        return (...args: unknown[]) => {
+          events.push(args[0]);
+        };
       },
     },
   ) as unknown as ExtensionAPI;
 
   piMention(pi);
 
-  assert.deepEqual(touched, [], "the scaffold must not touch the extension API");
+  assert.deepEqual(touched, ["on"]);
+  assert.deepEqual(events, ["session_start"]);
 });
 
 test("loading the entry writes nothing", () => {

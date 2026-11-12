@@ -3,8 +3,15 @@
 Mention-aware prompt editor for pi. `$` names a skill, `%` names a tool, `&`
 names an agent role, and `@` paths and URLs are coloured while you type.
 
-> **Status:** scaffold. The extension loads and registers nothing yet. Behaviour
-> lands ticket by ticket; see the [map issue](https://github.com/jennymaeleidig/pi-mention/issues/1).
+> **Status:** the editor colour layer is live. `$` skills, `%` tools, `&` agent
+> roles, `@` paths and URLs are coloured while typing; autocomplete and
+> expansion land next. See the [map issue](https://github.com/jennymaeleidig/pi-mention/issues/1).
+
+## Colours
+
+Palette C is the default: purple skills, cyan paths, orange tools, green roles,
+pink URLs and yellow unresolved mentions. Colours are theme foreground roles,
+so they follow the active theme. Configure them under `piMention.colors`.
 
 ## Compatibility
 
