@@ -154,6 +154,106 @@ function fallbackDiagnostic(key: string, requirement: string, used: string): Dia
   };
 }
 
+interface LeafSpec<T> {
+  property: string;
+  key: string;
+  schema: TSchema;
+  fallback: () => T;
+  requirement: string;
+  used: string;
+}
+
+function leaf<T>(
+  property: string,
+  key: string,
+  schema: TSchema,
+  fallback: () => T,
+  requirement: string,
+  used: string,
+): LeafSpec<T> {
+  return { property, key, schema, fallback, requirement, used };
+}
+
+function readSpec<T>(raw: RawObject, spec: LeafSpec<T>, diagnostics: Diagnostic[]): T {
+  return readLeaf(
+    raw,
+    spec.property,
+    spec.key,
+    spec.schema,
+    spec.fallback(),
+    spec.requirement,
+    spec.used,
+    diagnostics,
+  );
+}
+
+const TOP_FIELDS = {
+  completionSuffix: leaf(
+    "completionSuffix",
+    "completionSuffix",
+    STRING,
+    () => DEFAULT_SETTINGS.completionSuffix,
+    "must be a string",
+    JSON.stringify(DEFAULT_SETTINGS.completionSuffix),
+  ),
+  hideSlashSkills: leaf(
+    "hideSlashSkills",
+    "hideSlashSkills",
+    BOOLEAN,
+    () => DEFAULT_SETTINGS.hideSlashSkills,
+    "must be a boolean",
+    String(DEFAULT_SETTINGS.hideSlashSkills),
+  ),
+};
+
+const RANKING_FIELDS = {
+  strategy: leaf(
+    "strategy",
+    "ranking.strategy",
+    STRATEGY,
+    () => DEFAULT_SETTINGS.ranking.strategy,
+    "must be one of frecency, recent, frequent, alphabetical or sourceOrder",
+    JSON.stringify(DEFAULT_SETTINGS.ranking.strategy),
+  ),
+  projectSkillsFirst: leaf(
+    "projectSkillsFirst",
+    "ranking.projectSkillsFirst",
+    BOOLEAN,
+    () => DEFAULT_SETTINGS.ranking.projectSkillsFirst,
+    "must be a boolean",
+    String(DEFAULT_SETTINGS.ranking.projectSkillsFirst),
+  ),
+};
+
+const URL_FIELDS = {
+  sourceExtensions: leaf(
+    "sourceExtensions",
+    "url.sourceExtensions",
+    STRING_ARRAY,
+    () => DEFAULT_SETTINGS.url.sourceExtensions,
+    "must be an array of strings",
+    "the default extension list",
+  ),
+};
+
+const NAME_FIELDS = {
+  skills: {
+    schema: STRING_ARRAY,
+    requirement: "must be an array of strings",
+    used: "an empty list",
+  },
+  tools: {
+    schema: STRING_ARRAY,
+    requirement: "must be an array of strings",
+    used: "an empty list",
+  },
+  roles: {
+    schema: STRING_ARRAY,
+    requirement: "must be an array of strings",
+    used: "an empty list",
+  },
+} as const;
+
 /** A nested settings object; a non-object falls back to that whole section. */
 function readGroup(
   raw: RawObject,
@@ -200,14 +300,15 @@ function readNameLists(
 ): NameLists {
   const result: NameLists = { ...fallbackValue };
   for (const name of NAME_KEYS) {
+    const spec = NAME_FIELDS[name];
     result[name] = readLeaf(
       raw,
       name,
       `${key}.${name}`,
-      STRING_ARRAY,
+      spec.schema,
       fallbackValue[name],
-      "must be an array of strings",
-      "an empty list",
+      spec.requirement,
+      spec.used,
       diagnostics,
     );
   }
@@ -308,62 +409,17 @@ export function loadSettings(raw: unknown): { settings: Settings; diagnostics: D
   const defaults = DEFAULT_SETTINGS;
   const settings: Settings = {
     triggers: readTriggers(raw, diagnostics),
-    completionSuffix: readLeaf(
-      raw,
-      "completionSuffix",
-      "completionSuffix",
-      STRING,
-      defaults.completionSuffix,
-      "must be a string",
-      JSON.stringify(defaults.completionSuffix),
-      diagnostics,
-    ),
-    hideSlashSkills: readLeaf(
-      raw,
-      "hideSlashSkills",
-      "hideSlashSkills",
-      BOOLEAN,
-      defaults.hideSlashSkills,
-      "must be a boolean",
-      String(defaults.hideSlashSkills),
-      diagnostics,
-    ),
+    completionSuffix: readSpec(raw, TOP_FIELDS.completionSuffix, diagnostics),
+    hideSlashSkills: readSpec(raw, TOP_FIELDS.hideSlashSkills, diagnostics),
     ranking: {
-      strategy: readLeaf(
-        ranking,
-        "strategy",
-        "ranking.strategy",
-        STRATEGY,
-        defaults.ranking.strategy,
-        "must be one of frecency, recent, frequent, alphabetical or sourceOrder",
-        JSON.stringify(defaults.ranking.strategy),
-        diagnostics,
-      ),
+      strategy: readSpec(ranking, RANKING_FIELDS.strategy, diagnostics),
       pinned: readNameLists(pinned, "ranking.pinned", defaults.ranking.pinned, diagnostics),
-      projectSkillsFirst: readLeaf(
-        ranking,
-        "projectSkillsFirst",
-        "ranking.projectSkillsFirst",
-        BOOLEAN,
-        defaults.ranking.projectSkillsFirst,
-        "must be a boolean",
-        String(defaults.ranking.projectSkillsFirst),
-        diagnostics,
-      ),
+      projectSkillsFirst: readSpec(ranking, RANKING_FIELDS.projectSkillsFirst, diagnostics),
     },
     exclude: readNameLists(exclude, "exclude", defaults.exclude, diagnostics),
     colors: readColours(colors, diagnostics),
     url: {
-      sourceExtensions: readLeaf(
-        url,
-        "sourceExtensions",
-        "url.sourceExtensions",
-        STRING_ARRAY,
-        defaults.url.sourceExtensions,
-        "must be an array of strings",
-        "the default extension list",
-        diagnostics,
-      ),
+      sourceExtensions: readSpec(url, URL_FIELDS.sourceExtensions, diagnostics),
     },
   };
 

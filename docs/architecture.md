@@ -206,8 +206,10 @@ The extension reads one top-level key:
 - `typebox` validates the `piMention` object in code; there is no checked-in
   `config.schema.json`.
 
-`loadSettings` validates the effective object. An invalid value falls back to
-the code default for that key and produces one diagnostic; diagnostics are
+`loadSettings` validates the effective object. A per-section field table holds
+each leaf's schema, fallback requirement and fallback wording; the values
+remain in `DEFAULT_SETTINGS`, and the table points at them. An invalid value
+falls back to the code default for that key and produces one diagnostic; diagnostics are
 notified at every `session_start`. A malformed `piMention` value (not an object)
 falls back to all defaults with one diagnostic. A malformed section (for
 example `"colors": "bright"`) falls back to that section's defaults with one
@@ -263,7 +265,8 @@ Node test runner, no browser and no live pi session in the unit suite.
   fake-editor suite that drives the real `installEditorColours` seam.
 - A colour-memo test that a live tool appearing mid-session recolours the same
   text, and path-catalog tests for the pure cache read and TTL revalidation.
-- Settings validation tests, including per-key fallback and diagnostics.
+- Settings validation tests, including per-key fallback and diagnostics, plus a
+  test that the README's complete example equals the code defaults.
 - One wiring smoke test with a fake `ExtensionAPI` that drives the real
   registration.
 
