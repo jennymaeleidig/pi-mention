@@ -113,8 +113,7 @@ export function resolve(
   return mentions.map((mention) => {
     if (mention.class !== "skill") return resolveOne(mention, catalogs, settings);
     if (skillSeen) return { mention, status: "unresolved" };
-    const resolved = resolveOne(mention, catalogs, settings);
-    if (resolved.status !== "unresolved") skillSeen = true;
-    return resolved;
+    skillSeen = true;
+    return resolveOne(mention, catalogs, settings);
   });
 }

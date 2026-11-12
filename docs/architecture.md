@@ -33,7 +33,8 @@ src/core/            no pi imports, no I/O
   picker.ts          trigger token + ranking
   selection.ts       picker class and selection history shape
   settings.ts        raw object -> settings + diagnostics
-  types.ts           Mention, Target, ResolvedMention, ColourSpan, Settings
+  types.ts           Mention, Target, ResolvedMention, SkillSource, ExpandedMessage,
+                     ColourSpan, Settings
 
 src/pi/              the only code that knows pi
   index.ts           registration and wiring
@@ -65,14 +66,21 @@ parse(text: string, specs: TriggerSpec[]) -> { mentions: Mention[]; codeRanges: 
 
 resolve(mentions: Mention[], catalogs: Catalogs, config: Settings) -> ResolvedMention[]
 
-expand(message: Message, resolved: ResolvedMention[], config: Settings)
-  -> { text: string; skillBlock?: string }
+expand(message: string, resolved: ResolvedMention[], config: Settings,
+       options?: ExpandOptions) -> ExpandedMessage
 
 colourSpans(text: string, resolved: ResolvedMention[], config: Settings)
   -> ColourSpan[]
 
 loadSettings(raw: unknown) -> { settings: Settings; diagnostics: Diagnostic[] }
 ```
+
+`ExpandedMessage` carries the expanded `text`, the native `skillBlock` when the
+input seam built one, and a `skillFailure` when a resolved skill could not
+become a block. `ExpandOptions.skillSource` is the adapter-supplied lookup for a
+resolved skill's `SkillSource` (location, base directory and frontmatter-stripped
+body); expansion itself never reads a file. The optional source keeps the seam
+pure while the pi adapter owns the I/O.
 
 `catalogs` is plain data built by the adapters. None of these five does I/O,
 registers anything, activates a tool, or edits the prompt's tool section.
@@ -153,9 +161,13 @@ notified at every `session_start`. A malformed `piMention` value (not an object)
 falls back to all defaults with one diagnostic. A malformed section (for
 example `"colors": "bright"`) falls back to that section's defaults with one
 diagnostic and leaves the other sections alone. Unknown keys are ignored and
-never change behaviour. pi 1.5.2 has no settings-change event. The extension
-reads `pi.getSettings()` once when it is registered; a `/reload` that rebinds
-the extension, or a process restart, re-reads the effective key.
+never change behaviour. pi 1.5.2 has no settings-change event, and
+`pi.getSettings()` throws before the session is bound. The extension therefore
+reads it at the first `session_start` and caches the result for that extension
+instance; a `/reload` that rebinds the extension, or a process restart, re-reads
+the effective key. The input and context seams are installed from that first
+`session_start` so they receive the real settings; the TUI-only editor and
+autocomplete are also installed there, once.
 
 ## Selection history
 

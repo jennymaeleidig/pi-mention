@@ -14,26 +14,35 @@ import { readSettings, settingsWarning, type LoadedSettings } from "./settings.t
  * Register the extension's pi surface. This is the one place that talks to
  * `ExtensionAPI`; the colour layer itself is pure.
  *
- * pi 1.5.2 has no settings-change event. `pi.getSettings()` is read once when
- * the extension is registered; a `/reload` that rebinds the extension (or a
- * process restart) re-reads the settings.
+ * pi 1.5.2's `pi.getSettings()` throws before the session is bound, so settings
+ * are read at the first `session_start`, not at registration. That is also when
+ * the input and context seams are installed, so they receive the effective
+ * settings. The TUI-only editor and autocomplete are installed once as well.
+ * pi 1.5.2 has no settings-change event; a `/reload` that rebinds the extension,
+ * or a process restart, re-reads the settings.
  */
 export function register(pi: ExtensionAPI): void {
-  const loaded: LoadedSettings = readSettings(pi);
-  let installed = false;
-
-  installSkillInput(pi, loaded.settings);
-  installContextEscapes(pi, loaded.settings);
+  let loaded: LoadedSettings | undefined;
+  let seamsInstalled = false;
+  let uiInstalled = false;
 
   pi.on("session_start", (_event, ctx) => {
-    if (loaded.diagnostics.length > 0) {
-      ctx.ui.notify(settingsWarning(loaded.diagnostics), "warning");
+    loaded ??= readSettings(pi);
+    const { settings, diagnostics } = loaded;
+
+    if (!seamsInstalled) {
+      seamsInstalled = true;
+      installSkillInput(pi, settings);
+      installContextEscapes(pi, settings);
     }
 
-    if (ctx.mode !== "tui" || installed) return;
-    installed = true;
+    if (diagnostics.length > 0) {
+      ctx.ui.notify(settingsWarning(diagnostics), "warning");
+    }
 
-    const { settings } = loaded;
+    if (ctx.mode !== "tui" || uiInstalled) return;
+    uiInstalled = true;
+
     const paths = pathCatalog(ctx.cwd);
     const catalogs = {
       skills: skillCatalog(pi),

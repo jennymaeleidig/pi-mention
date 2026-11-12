@@ -95,10 +95,10 @@ A backslash before a trigger suppresses the mention:
 \$PATH is literal
 ```
 
-The draft and the message keep the backslash, so the transcript shows what was
-typed. The **expanded message drops it**, so the model receives a literal
-`%bash`, `$PATH` or `&general` rather than a directive. This asymmetry is
-deliberate and is stated in the README.
+The draft and the persisted message keep the backslash, so the transcript shows
+what was typed. The **model-facing expanded message drops it** at the context
+seam, so the model receives a literal `%bash`, `$PATH` or `&general` rather
+than a directive. This asymmetry is deliberate and is stated in the README.
 
 ## Code
 
@@ -113,7 +113,8 @@ position wins. Duplicate targets are expanded at every occurrence and deduped
 where the expansion contract says so.
 
 Only one native skill block can be parsed per message. The **first** `$skill`
-wins; later `$skill` mentions stay literal and are coloured as unresolved.
+mention is the only one eligible; later `$skill` mentions stay literal and are
+coloured as unresolved, even when the first mention does not resolve.
 
 ## URLs
 

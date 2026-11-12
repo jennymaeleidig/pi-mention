@@ -1,40 +1,30 @@
-import { findCodeRanges } from "./grammar.ts";
-import type { Range, ResolvedMention, Settings, Target } from "./types.ts";
+import { findCodeRanges, inRanges } from "./grammar.ts";
+import type {
+  ExpandOptions,
+  ExpandedMessage,
+  Range,
+  ResolvedMention,
+  Settings,
+  SkillSource,
+} from "./types.ts";
 
-/** A skill body and its location, loaded and frontmatter-stripped by the pi adapter. */
-export interface SkillSource {
-  /** The skill's short label, used in the block's `name` attribute. */
-  name: string;
-  /** Absolute path to the SKILL.md file. */
-  location: string;
-  /** Directory that relative references in the body resolve against. */
-  baseDir: string;
-  /** SKILL.md content with frontmatter already stripped. */
-  body: string;
+/** The opening marker of Pi's native skill block. */
+export const SKILL_BLOCK_OPEN = '<skill name="';
+const SKILL_CLOSE_TAG = "</skill>";
+const SKILL_BLOCK_CLOSE = `\n${SKILL_CLOSE_TAG}`;
+const CLOSING_TAG_LINE = new RegExp(`^${SKILL_CLOSE_TAG}$`, "m");
+
+/**
+ * The extent of the native skill block that opens `text`, ignoring leading
+ * whitespace. `start` is present whenever the opening marker is; `end` is
+ * present once the closing-tag line is found.
+ */
+export function skillBlockBounds(text: string): { start: number; end?: number } | undefined {
+  const start = text.length - text.trimStart().length;
+  if (!text.startsWith(SKILL_BLOCK_OPEN, start)) return undefined;
+  const close = text.indexOf(SKILL_BLOCK_CLOSE, start + SKILL_BLOCK_OPEN.length);
+  return close < 0 ? { start } : { start, end: close + SKILL_BLOCK_CLOSE.length };
 }
-
-export interface ExpandOptions {
-  /**
-   * Adapter-supplied source for a resolved skill. Expansion itself performs no
-   * I/O; a missing source aborts the block and leaves the mention literal.
-   */
-  skillSource?: (target: Target) => SkillSource | undefined;
-}
-
-export interface SkillFailure {
-  /** The skill label, for the adapter's one user-facing notice. */
-  name: string;
-}
-
-export interface ExpandedMessage {
-  text: string;
-  /** Present only when a native skill block was built at the input seam. */
-  skillBlock?: string;
-  /** Present when a resolved skill could not become a block. */
-  skillFailure?: SkillFailure;
-}
-
-const CLOSING_TAG_LINE = /^<\/skill>$/m;
 
 /**
  * Build Pi's byte-exact skill block.
@@ -51,8 +41,8 @@ export function buildSkillBlock(source: SkillSource): string | undefined {
   if (CLOSING_TAG_LINE.test(body)) return undefined;
 
   return (
-    `<skill name="${name}" location="${location}">\n` +
-    `References are relative to ${baseDir}.\n\n${body}\n</skill>`
+    `${SKILL_BLOCK_OPEN}${name}" location="${location}">\n` +
+    `References are relative to ${baseDir}.\n\n${body}${SKILL_BLOCK_CLOSE}`
   );
 }
 
@@ -84,27 +74,25 @@ function removalRange(text: string, span: Range): Range {
   return { start, end };
 }
 
-function inRanges(index: number, ranges: readonly Range[]): boolean {
-  return ranges.some((range) => index >= range.start && index < range.end);
+/** The message with one mention removed, leaving every escape exactly as typed. */
+function removeMention(text: string, span: Range): string {
+  const range = removalRange(text, span);
+  return text.slice(0, range.start) + text.slice(range.end);
+}
+
+function triggersFor(settings: Settings): Set<string> {
+  return new Set([settings.triggers.skill, settings.triggers.tool, settings.triggers.role]);
 }
 
 /**
- * Emit the remaining prose, dropping the escaped-trigger backslash outside code
- * and outside the removed mention. A skill block body never passes through here.
+ * Drop escaped-trigger backslashes in model-facing prose, leaving code inert.
+ * A skill block body never passes through here.
  */
-function expandProse(
-  text: string,
-  remove: Range | undefined,
-  codeRanges: readonly Range[],
-  triggers: ReadonlySet<string>,
-): string {
+function unescapeProse(text: string, triggers: ReadonlySet<string>): string {
+  const codeRanges = findCodeRanges(text);
   let out = "";
   let i = 0;
   while (i < text.length) {
-    if (remove && i === remove.start) {
-      i = remove.end;
-      continue;
-    }
     const next = text[i + 1];
     if (
       text[i] === "\\" &&
@@ -123,10 +111,6 @@ function expandProse(
   return out;
 }
 
-function triggersFor(settings: Settings): Set<string> {
-  return new Set([settings.triggers.skill, settings.triggers.tool, settings.triggers.role]);
-}
-
 /**
  * Drop escaped-trigger backslashes in a message the model is about to receive,
  * without touching a leading native skill block. The context seam uses this so
@@ -134,57 +118,44 @@ function triggersFor(settings: Settings): Set<string> {
  */
 export function unescapeExpandedText(text: string, settings: Settings): string {
   const triggers = triggersFor(settings);
-  let start = 0;
-  if (text.startsWith('<skill name="')) {
-    const close = text.indexOf("\n</skill>");
-    if (close < 0) return text;
-    start = close + "\n</skill>".length;
-  }
-  const prefix = text.slice(0, start);
-  const suffix = text.slice(start);
-  return prefix + expandProse(suffix, undefined, findCodeRanges(suffix), triggers);
+  const block = skillBlockBounds(text);
+  if (!block) return unescapeProse(text, triggers);
+  if (block.end === undefined) return text;
+  return text.slice(0, block.end) + unescapeProse(text.slice(block.end), triggers);
 }
 
 /**
- * Expand a message at the pure seam.
+ * Expand a message at the pure input seam.
  *
- * Skills are the only class expanded here. The first resolving skill becomes
- * Pi's canonical block; the mention is removed and the remaining prose follows
- * after `\n\n`. Unresolved or excluded skills, later skills, code ranges and
- * unrepresentable blocks stay literal. Escape backslashes are dropped only in
- * the prose, never in a skill body.
+ * Skills are the only class expanded here. The first skill mention is the only
+ * one eligible; when it resolves, it becomes Pi's canonical block, the mention
+ * is removed and the remaining prose follows after `\n\n`. Unresolved or
+ * excluded skills, later skills, code ranges and unrepresentable blocks stay
+ * literal. Escapes are left exactly as typed: this seam persists the
+ * transcript, and the context seam drops the backslashes for the model.
  */
 export function expand(
   message: string,
   resolved: readonly ResolvedMention[],
-  settings: Settings,
+  _settings: Settings,
   options: ExpandOptions = {},
 ): ExpandedMessage {
-  const codeRanges = findCodeRanges(message);
-  const triggers = triggersFor(settings);
   const skill = firstResolvedSkill(resolved);
-  const literal = expandProse(message, undefined, codeRanges, triggers);
-
-  if (!skill?.target) return { text: literal };
+  if (!skill?.target) return { text: message };
 
   const source = options.skillSource?.(skill.target);
   if (!source) {
-    return { text: literal, skillFailure: { name: skill.target.label } };
+    return { text: message, skillFailure: { name: skill.target.label } };
   }
 
   const skillBlock = buildSkillBlock(source);
   if (!skillBlock) {
-    return { text: literal, skillFailure: { name: skill.target.label } };
+    return { text: message, skillFailure: { name: skill.target.label } };
   }
 
-  const rest = expandProse(
-    message,
-    removalRange(message, skill.mention.span),
-    codeRanges,
-    triggers,
-  ).trim();
+  const prose = removeMention(message, skill.mention.span).trim();
   return {
-    text: rest ? `${skillBlock}\n\n${rest}` : skillBlock,
+    text: prose ? `${skillBlock}\n\n${prose}` : skillBlock,
     skillBlock,
   };
 }

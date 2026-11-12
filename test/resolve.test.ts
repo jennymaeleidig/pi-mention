@@ -130,7 +130,7 @@ test("a trailing colon is an incomplete tool chain, never a peeled server", () =
   assert.equal(resolved?.mention.label, "bash:");
 });
 
-test("only the first resolving skill expands; later skills are unresolved", () => {
+test("only the first skill mention is eligible; later skills are unresolved", () => {
   const resolved = resolveText("$tdd $code-review");
   assert.deepEqual(
     resolved.map((mention) => mention.status),
@@ -138,10 +138,10 @@ test("only the first resolving skill expands; later skills are unresolved", () =
   );
 });
 
-test("an unresolved first skill leaves the next skill eligible", () => {
+test("an unresolved first skill keeps every later skill unresolved", () => {
   const resolved = resolveText("$nope $tdd");
   assert.deepEqual(
     resolved.map((mention) => mention.status),
-    ["unresolved", "resolved"],
+    ["unresolved", "unresolved"],
   );
 });

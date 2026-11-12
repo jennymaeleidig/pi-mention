@@ -61,7 +61,7 @@ The rule that a trigger starts a mention only at a permitted position in the tex
 _Avoid_: Prefix rule, delimiter rule
 
 **Escape**:
-A backslash that suppresses a trigger. The draft and message keep it; the expanded message drops it.
+A backslash that suppresses a trigger. The draft and persisted transcript keep it; the model-facing expanded message drops it.
 _Avoid_: Quote, literal marker
 
 **Picker**:

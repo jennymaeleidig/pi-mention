@@ -35,6 +35,29 @@ test("skills come from pi's skill commands and keep their short label", () => {
   ]);
 });
 
+test("a pathless skill stays in the catalog but out of expansion", () => {
+  const pi = {
+    getCommands: () => [
+      {
+        name: "skill:inline",
+        source: "skill",
+        description: "No file on disk",
+        sourceInfo: {},
+      },
+      { name: "skill:tdd", source: "skill", sourceInfo: { path: "/skills/tdd/SKILL.md" } },
+    ],
+  } as unknown as ExtensionAPI;
+
+  assert.deepEqual(skillCatalog(pi), [
+    { class: "skill", label: "inline", name: "skill:inline", description: "No file on disk" },
+    { class: "skill", label: "tdd", name: "skill:tdd" },
+  ]);
+  assert.deepEqual(
+    skillEntries(pi).map((entry) => entry.target.label),
+    ["tdd"],
+  );
+});
+
 test("a broken command list yields an empty catalog", () => {
   const pi = {
     getCommands: () => {

@@ -13,9 +13,10 @@ Grammar is in [mention-grammar.md](./mention-grammar.md); vocabulary is in
 - **`%tool` and `&role` expand at context.** They rewrite the expanded message
   only; the transcript keeps what was typed.
 
-Both seams skip fenced and inline code. Escaped triggers lose their backslash
-only in the expanded message, and only in the user's prose — never inside a
-skill block body.
+Both seams skip fenced and inline code. The transcript keeps every escape
+exactly as typed. The model-facing expanded message drops the backslash in the
+user's prose — never inside a skill block body — and the context seam performs
+that unescaping.
 
 Expansion is all-or-nothing per mention: an unresolved or excluded mention stays
 literal everywhere, and no partial block is emitted.
@@ -23,12 +24,14 @@ literal everywhere, and no partial block is emitted.
 ## Order
 
 1. Parse code ranges and mentions with the grammar.
-2. If a resolvable `$skill` is present, build the skill block, remove that
+2. If the first `$skill` mention resolves, build the skill block, remove that
    mention, and hoist the remaining prose after `\n\n`.
 3. Expand `%tool` mentions in the remaining prose, then append one tool block.
 4. If the prose begins with `&role`, replace it with the dispatch prefix and
    leave the task text after a blank line.
-5. Unescape `\%`, `\$`, `\&` in the expanded prose.
+5. At the context seam, unescape `\%`, `\$`, `\&` for the model only. The input
+   seam persists the escape in the transcript, and the skill block body is
+   opaque.
 
 A skill block is opaque: `%` and `&` inside it are never expanded. "Leading"
 for a role mention means the first non-whitespace token of the **prose**, after
@@ -49,7 +52,10 @@ References are relative to /abs/path/to/tdd.
 If prose remains, append `\n\n` and the prose with the mention removed and
 trimmed. If no prose remains, the block stands alone.
 
-- The first `$skill` wins. Later `$skill` mentions stay literal.
+- The first `$skill` mention is the only one eligible. Later `$skill` mentions
+  stay literal, even when the first one does not resolve.
+- If the message already begins with a canonical block, the input seam leaves
+  it untouched: it never builds a second block or rewrites the restored one.
 - The mention's position in the prose is lost; the skill row always comes first.
 - Normalize CRLF, strip frontmatter, trim.
 - If the skill name or path contains `"`, or the body contains a line
@@ -125,6 +131,8 @@ The user selected the `general` role but gave no task. Do not call the `subagent
 | `$tdd`                           | skill `tdd`         | skill block                                            | `[skill] tdd` row                        |
 | `$nope`                          | none                | `$nope`                                                | `$nope`                                  |
 | `$tdd $other`                    | skill `tdd`         | skill block + `\n\n$other`                             | `[skill] tdd` row + `$other`             |
+| `$nope $tdd`                     | none                | `$nope $tdd`                                           | `$nope $tdd`                             |
+| `$tdd please \$PATH`             | skill `tdd`         | skill block + `\n\nplease $PATH`                       | `[skill] tdd` row + `please \$PATH`      |
 | `%bash list files`               | tool `bash`, direct | `` `bash` list files `` + tool block                   | `%bash list files`                       |
 | `%kagi:kagi_search_fetch cats`   | tool, indirect      | `` `mcp__kagi__kagi_search_fetch` cats `` + tool block | `%kagi:kagi_search_fetch cats`           |
 | `%bash %bash`                    | tool `bash`         | `` `bash` `bash` `` + one tool block entry             | `%bash %bash`                            |
@@ -143,9 +151,18 @@ The user selected the `general` role but gave no task. Do not call the `subagent
 The pure seam is:
 
 ```ts
-expand(message: Message, catalogs: Catalogs, config: Config): ExpandedMessage
+expand(
+  message: string,
+  resolved: ResolvedMention[],
+  config: Settings,
+  options?: ExpandOptions,
+): ExpandedMessage
 ```
 
-It takes the message text, the live catalogs and configuration, and returns the
-expanded text plus the skill block to use at input, if any. It performs no I/O,
-registers nothing, activates nothing, and never edits the prompt's tool section.
+It takes the message text, the already-resolved mentions, configuration, and
+optional adapter-supplied skill sources, and returns the expanded text plus the
+skill block to use at input and, when a resolved skill cannot become a block,
+the failure for the adapter's one notice. It performs no I/O, registers nothing,
+activates nothing, and never edits the prompt's tool section. The `pi` adapter
+supplies a `SkillSource` (location, base directory and frontmatter-stripped body)
+through `options.skillSource`, so expansion never reads a file itself.

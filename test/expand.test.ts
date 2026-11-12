@@ -1,23 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseSkillBlock } from "@earendil-works/pi-coding-agent";
-import {
-  buildSkillBlock,
-  expand,
-  firstResolvedSkill,
-  type SkillSource,
-} from "../src/core/expand.ts";
-import { parse, type TriggerSpec } from "../src/core/grammar.ts";
+import { buildSkillBlock, expand, firstResolvedSkill } from "../src/core/expand.ts";
+import { parse, triggerSpecs } from "../src/core/grammar.ts";
 import { resolve } from "../src/core/resolve.ts";
 import { defaultSettings } from "../src/core/settings.ts";
-import type { Catalogs, Settings } from "../src/core/types.ts";
-
-const SPECS: TriggerSpec[] = [
-  { class: "skill", trigger: "$" },
-  { class: "path", trigger: "@" },
-  { class: "tool", trigger: "%" },
-  { class: "role", trigger: "&" },
-];
+import type { Catalogs, Settings, SkillSource } from "../src/core/types.ts";
 
 const paths = new Set<string>();
 const catalogs: Catalogs = {
@@ -66,7 +54,7 @@ function expanded(
   settings: Settings = defaultSettings(),
   overrides?: typeof sources,
 ) {
-  const { mentions } = parse(text, SPECS);
+  const { mentions } = parse(text, triggerSpecs(settings));
   const resolved = resolve(
     mentions.filter((mention) => mention.class === "skill"),
     catalogs,
@@ -107,20 +95,21 @@ test("prose before or after a skill moves after the block", () => {
   assert.equal(expanded("please $tdd this").text, `${TDD}\n\nplease this`);
 });
 
-test("a skill on its own stands alone, and only the first skill expands", () => {
+test("a skill on its own stands alone, and only the first skill mention expands", () => {
   assert.equal(expanded("$tdd").text, TDD);
   assert.equal(expanded("$tdd $other").text, `${TDD}\n\n$other`);
-  assert.equal(expanded("$nope $tdd").text, `${TDD}\n\n$nope`);
+  assert.equal(expanded("$nope $tdd").text, "$nope $tdd");
+  assert.equal(expanded("$nope $tdd").skillBlock, undefined);
   assert.equal(expanded("$nope").text, "$nope");
   assert.equal(expanded("$nope").skillBlock, undefined);
 });
 
-test("code and escapes keep the native block opaque and literal", () => {
+test("code stays literal and the input seam keeps every escape for the transcript", () => {
   assert.deepEqual(expanded("```\n$tdd\n```").text, "```\n$tdd\n```");
   assert.equal(expanded("`$tdd`").skillBlock, undefined);
-  assert.equal(expanded("\\$tdd").text, "$tdd");
+  assert.equal(expanded("\\$tdd").text, "\\$tdd");
   assert.equal(expanded("\\$tdd").skillBlock, undefined);
-  assert.equal(expanded("$tdd \\$PATH").text, `${TDD}\n\n$PATH`);
+  assert.equal(expanded("$tdd \\$PATH").text, `${TDD}\n\n\\$PATH`);
 
   const escapedBody = new Map(sources);
   escapedBody.set("tdd", { ...sources.get("tdd")!, body: "Keep \\$PATH literally." });
@@ -157,7 +146,7 @@ test("a quote in the name or path, or a closing tag line in the body, aborts the
 });
 
 test("a missing body lookup leaves the mention literal and reports the failure", () => {
-  const { mentions } = parse("please $tdd this", SPECS);
+  const { mentions } = parse("please $tdd this", triggerSpecs(defaultSettings()));
   const resolved = resolve(
     mentions.filter((mention) => mention.class === "skill"),
     catalogs,
@@ -171,8 +160,8 @@ test("a missing body lookup leaves the mention literal and reports the failure",
   assert.equal(missing.skillFailure?.name, "tdd");
 });
 
-test("firstResolvedSkill picks the first mention that actually resolved", () => {
-  const { mentions } = parse("$nope $tdd $other", SPECS);
+test("firstResolvedSkill picks the first resolved skill mention", () => {
+  const { mentions } = parse("$tdd $nope $other", triggerSpecs(defaultSettings()));
   const resolved = resolve(
     mentions.filter((mention) => mention.class === "skill"),
     catalogs,

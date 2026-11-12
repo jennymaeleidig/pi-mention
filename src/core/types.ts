@@ -44,6 +44,42 @@ export interface ResolvedMention {
   target?: Target;
 }
 
+/** A skill body and its location, loaded and frontmatter-stripped by the pi adapter. */
+export interface SkillSource {
+  /** The skill's short label, used in the block's `name` attribute. */
+  name: string;
+  /** Absolute path to the SKILL.md file. */
+  location: string;
+  /** Directory that relative references in the body resolve against. */
+  baseDir: string;
+  /** SKILL.md content with frontmatter already stripped. */
+  body: string;
+}
+
+/** Adapter-supplied inputs that the pure expander cannot read itself. */
+export interface ExpandOptions {
+  /**
+   * The source for a resolved skill. Expansion itself performs no I/O; a
+   * missing source aborts the block and leaves the mention literal.
+   */
+  skillSource?: (target: Target) => SkillSource | undefined;
+}
+
+/** A resolved skill that could not become a block. */
+export interface SkillFailure {
+  /** The skill label, for the adapter's one user-facing notice. */
+  name: string;
+}
+
+/** A message after expansion at one seam. */
+export interface ExpandedMessage {
+  text: string;
+  /** Present only when a native skill block was built at the input seam. */
+  skillBlock?: string;
+  /** Present when a resolved skill could not become a block. */
+  skillFailure?: SkillFailure;
+}
+
 /** A range to paint with one theme foreground role. */
 export interface ColourSpan extends Range {
   role: string;

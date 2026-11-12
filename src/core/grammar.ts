@@ -78,7 +78,8 @@ function mergeRanges(ranges: Range[]): Range[] {
   return out;
 }
 
-function inRanges(index: number, ranges: readonly Range[]): boolean {
+/** True when `index` falls inside any half-open range. */
+export function inRanges(index: number, ranges: readonly Range[]): boolean {
   return ranges.some((range) => index >= range.start && index < range.end);
 }
 

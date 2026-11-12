@@ -94,6 +94,7 @@ test("later skills, unknown skills, and code stay literal", async () => {
     }
 
     assert.deepEqual((await run("$nope")).result, { action: "continue" });
+    assert.deepEqual((await run("$nope $tdd")).result, { action: "continue" });
     assert.deepEqual((await run("```\n$tdd\n```")).result, { action: "continue" });
     assert.deepEqual((await run("`$tdd`")).result, { action: "continue" });
   } finally {
@@ -193,6 +194,23 @@ test("print, JSON and RPC modes transform without crashing", async () => {
   }
 });
 
+test("an existing native skill block stays untouched, even with a trigger in its body", async () => {
+  const { dir, file } = await withSkill("Body.");
+  try {
+    const run = setup(() => [
+      { name: "skill:tdd", source: "skill", sourceInfo: { path: file, baseDir: dir } },
+    ]);
+    const restored =
+      '<skill name="old" location="/abs/old/SKILL.md">\n' +
+      "References are relative to /abs/old.\n\nKeep $other literally.\n</skill>\n\nplease \\$PATH";
+
+    assert.deepEqual((await run(restored)).result, { action: "continue" });
+    assert.deepEqual((await run(`  ${restored}`)).result, { action: "continue" });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("the configured skill trigger works and escaped triggers survive the block", async () => {
   const { dir, file } = await withSkill("Body.");
   try {
@@ -202,7 +220,7 @@ test("the configured skill trigger works and escaped triggers survive the block"
     const escaped = await setup(commands)("$tdd please \\$PATH");
     assert.equal(escaped.result.action, "transform");
     if (escaped.result.action === "transform") {
-      assert.equal(parseSkillBlock(escaped.result.text)?.userMessage, "please $PATH");
+      assert.equal(parseSkillBlock(escaped.result.text)?.userMessage, "please \\$PATH");
     }
 
     const settings = defaultSettings();
