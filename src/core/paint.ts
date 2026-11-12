@@ -36,6 +36,21 @@ function escapeAt(text: string, index: number): number {
   return 2;
 }
 
+/** Remove every escape (CSI, OSC, APC and friends) from an ANSI string. */
+export function stripAnsi(text: string): string {
+  let out = "";
+  for (let i = 0; i < text.length;) {
+    const esc = escapeAt(text, i);
+    if (esc > 0) {
+      i += esc;
+      continue;
+    }
+    out += text[i];
+    i++;
+  }
+  return out;
+}
+
 /**
  * Paint the grapheme runs of one rendered row that logical spans cover.
  *

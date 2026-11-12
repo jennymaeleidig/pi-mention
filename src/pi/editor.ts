@@ -1,5 +1,5 @@
 import { CustomEditor, type ExtensionUIContext, type Theme } from "@earendil-works/pi-coding-agent";
-import { paintRow, type PaintWrap } from "../core/paint.ts";
+import { paintRow, stripAnsi, type PaintWrap } from "../core/paint.ts";
 import type { ColourSpan } from "../core/types.ts";
 
 type Role = Parameters<Theme["fg"]>[0];
@@ -42,30 +42,41 @@ function innermost(editor: object): object {
   return current;
 }
 
-/** Visible text of a rendered row, with every escape sequence removed. */
-function plain(line: string): string {
-  return line.replace(
-    /\u001b(?:\[[0-?]*[ -/]*[@-~]|[_\]P][^\u0007\u001b]*(?:\u0007|\u001b\\))/g,
-    "",
-  );
-}
-
 /**
- * True when `line` is the frame `expected`, allowing pi-vim-editor's mode
- * label: vim replaces a run of border dashes with its status, so the row is
- * still the same frame at the same width.
+ * True when `row` is the frame `expected`, allowing pi-vim-editor's mode
+ * label on a border. Vim replaces a contiguous run of border dashes with its
+ * status (`──── NORMAL ────`), so the changed cells in `expected` must all be
+ * dashes and the corresponding cells in `row` must be a non-empty label with
+ * no dashes. A title inserted into other border content is not the frame.
  */
-export function sameFrame(line: string, expected: string, width: number, vim: boolean): boolean {
-  if (line === expected) return true;
-  if (!vim) return false;
-  const got = plain(line);
-  const want = plain(expected);
-  return (
-    got.length === width &&
-    want.length === width &&
-    got.charAt(0) === want.charAt(0) &&
-    got.charAt(got.length - 1) === want.charAt(want.length - 1)
-  );
+export function frameRowMatches(
+  row: string,
+  expected: string,
+  width: number,
+  allowVimLabel: boolean,
+): boolean {
+  if (row === expected) return true;
+  if (!allowVimLabel) return false;
+  const got = stripAnsi(row);
+  const want = stripAnsi(expected);
+  if (got.length !== width || want.length !== width) return false;
+  if (got.charAt(0) !== want.charAt(0)) return false;
+  if (got.charAt(got.length - 1) !== want.charAt(want.length - 1)) return false;
+
+  let start = -1;
+  let end = -1;
+  for (let i = 0; i < width; i++) {
+    if (got[i] === want[i]) continue;
+    if (start < 0) start = i;
+    else if (end !== i - 1) return false;
+    end = i;
+  }
+  if (start < 0) return false;
+  for (let i = start; i <= end; i++) {
+    if (want[i] !== "\u2500") return false;
+    if (got[i] === "\u2500") return false;
+  }
+  return true;
 }
 
 /** True when an SGR prefix actually sets a foreground colour. */
@@ -139,11 +150,12 @@ function installDecoration(
     if (!theme || !layout || rows <= 0 || lines.length < rows + 2) return lines;
     // Refuse to touch anything that is not Pi's own frame: a framer may have
     // rendered the base at another width, or replaced these rows. Vim is the
-    // one framer we compose with; it writes its mode label into a border.
+    // one framer we compose with; it writes its mode label into the bottom
+    // border, so only that row may relax to a dash-run label.
     const vim = VIM_EDITOR in port;
     if (
-      !sameFrame(lines[0] ?? "", topLine, width, vim) ||
-      !sameFrame(lines[rows + 1] ?? "", bottomLine, width, vim)
+      !frameRowMatches(lines[0] ?? "", topLine, width, false) ||
+      !frameRowMatches(lines[rows + 1] ?? "", bottomLine, width, vim)
     ) {
       return lines;
     }

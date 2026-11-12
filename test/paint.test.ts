@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { paintRow, type PaintWrap } from "../src/core/paint.ts";
+import { paintRow, stripAnsi, type PaintWrap } from "../src/core/paint.ts";
 import type { ColourSpan } from "../src/core/types.ts";
 
 const wrap = (role: string): PaintWrap | undefined =>
@@ -100,4 +100,20 @@ test("spans outside the row fragment are ignored", () => {
   const row = "hello";
   const spans: ColourSpan[] = [{ start: 10, end: 14, role: "skill" }];
   assert.equal(paintRow(row, 0, { startCol: 0, length: 5 }, spans, wrap), row);
+});
+
+test("stripAnsi removes CSI sequences", () => {
+  assert.equal(stripAnsi("a\u001b[31mb\u001b[0mc"), "abc");
+});
+
+test("stripAnsi removes OSC and APC strings with BEL or ST terminators", () => {
+  assert.equal(stripAnsi("x\u001b]11;rgb:0000/0000/0000\u0007y"), "xy");
+  assert.equal(stripAnsi("x\u001b]0;title\u001b\\y"), "xy");
+  assert.equal(stripAnsi("x\u001b_pi:c\u0007y"), "xy");
+});
+
+test("stripAnsi removes unterminated strings to the end", () => {
+  assert.equal(stripAnsi("a\u001b[31"), "a");
+  assert.equal(stripAnsi("a\u001b]no end"), "a");
+  assert.equal(stripAnsi("a\u001b_pi:c"), "a");
 });

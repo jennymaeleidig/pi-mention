@@ -12,7 +12,8 @@ What was tested against pi 1.5.2, `pi-zentui` 0.34.0 and `pi-vim-editor`
 - A temporary `PI_CODING_AGENT_DIR` per combination. Each holds a minimal
   `settings.json`, `models.json`, the user's `agents/` and `skills/`, and a
   `zentui.json` copied from the live config with the editor style changed to
-  `minimalist` or `opencode`.
+  `minimalist` or `opencode`. `settings.json` selects the local `mock` model
+  defined in `models.json`, so the UI runs contact no live provider.
 - Extensions are loaded explicitly with `--no-extensions -e …` so the order in
   the command is the load order:
 
@@ -84,16 +85,16 @@ Load pi-mention before pi-zentui.
 
 `P` = passed, `—` = not applicable, `F` = known fail.
 
-| Combination                                | 5 classes     | Unresolved | INSERT cursor | NORMAL cursor | Visual | Yank / delete / undo | Pickers | `@` / `/` | Wrap + wide | Resize |
-| ------------------------------------------ | ------------- | ---------- | ------------- | ------------- | ------ | -------------------- | ------- | --------- | ----------- | ------ |
-| stock TUI                                  | P             | P          | P             | —             | —      | —                    | P       | P         | P           | P      |
-| zentui `minimalist` after                  | P             | P          | P             | —             | —      | —                    | P       | P         | P           | P      |
-| zentui `opencode` after                    | P             | P          | P             | —             | —      | —                    | P       | P         | P           | P      |
-| vim after pi-mention                       | P             | P          | P             | P             | P      | P                    | P       | P         | P           | P      |
-| vim before pi-mention                      | P             | P          | P             | P             | P      | P                    | P       | P         | P           | P      |
-| vim + zentui `minimalist`, either vim side | P             | P          | P             | P             | P      | P                    | P       | P         | P           | P      |
-| vim + zentui `opencode`, either vim side   | P             | P          | P             | P             | P      | P                    | P       | P         | P           | P      |
-| zentui first, with or without vim          | F (fail-safe) | no colour  | —             | —             | —      | —                    | P       | —         | —           | —      |
+| Combination                                | 5 classes     | Unresolved | INSERT cursor | NORMAL cursor | Visual / select | Delete / undo | Pickers | `@` / `/` | Wrap + wide | Resize |
+| ------------------------------------------ | ------------- | ---------- | ------------- | ------------- | --------------- | ------------- | ------- | --------- | ----------- | ------ |
+| stock TUI                                  | P             | P          | P             | —             | P (mouse)       | P             | P       | P         | P           | P      |
+| zentui `minimalist` after                  | P             | P          | P             | —             | P (mouse)       | P             | P       | P         | P           | P      |
+| zentui `opencode` after                    | P             | P          | P             | —             | P (mouse)       | P             | P       | P         | P           | P      |
+| vim after pi-mention                       | P             | P          | P             | P             | P (Visual)      | P             | P       | P         | P           | P      |
+| vim before pi-mention                      | P             | P          | P             | P             | P (Visual)      | P             | P       | P         | P           | P      |
+| vim + zentui `minimalist`, either vim side | P             | P          | P             | P             | P (Visual)      | P             | P       | P         | P           | P      |
+| vim + zentui `opencode`, either vim side   | P             | P          | P             | P             | P (Visual)      | P             | P       | P         | P           | P      |
+| zentui first, with or without vim          | F (fail-safe) | no colour  | —             | —             | —               | —             | P       | P         | P           | P      |
 
 Details behind the columns:
 
@@ -104,13 +105,16 @@ Details behind the columns:
   sides of the reverse-video cursor. A cursor on `😀` did not split the
   surrogate pair. In NORMAL, `0`, `l`, `w`, `$` and `h` moved through and onto
   coloured tokens without changing their text.
-- **Visual.** `v` followed by `l` over `$wayfinder` produced reverse video on
-  the selection while keeping the purple foreground:
-  `\e[7;38;2;171;157;242m$wayfinder\e[0m`.
-- **Yank / delete / undo.** `y` left the text and colour intact. `d` removed
-  `$wayfinder` and the remaining tokens kept their colours. `u` restored
-  `$wayfinder` and its colour. The same held with vim loaded before
-  pi-mention.
+- **Selection.** Stock TUI and both zentui styles have no keyboard visual
+  mode; selection is the TUI's mouse drag. Pressing on `$wayfinder`, dragging
+  over it and releasing left reverse video on the purple foreground and
+  produced `Copied!`. In vim, `v` followed by `l` over `$wayfinder` produced
+  the same reverse-video overlay: `\e[7;38;2;171;157;242m$wayfinder\e[0m`.
+- **Delete / undo.** In stock and both zentui styles, clicking the start of
+  `%read` and pressing `Ctrl+K` removed the orange token; `Ctrl+-` restored
+  `%read` with its orange colour. In vim, `y` left the text and colour intact,
+  `d` removed the selected token, and `u` restored it with its colour. The
+  same held with vim loaded before pi-mention.
 - **Pickers.** `$`, `%`, `&`, `@` and `/` each opened; typing narrowed; Tab and
   Enter accepted; Esc cancelled. After accepting, the inserted token was
   coloured (`$wayfinder` purple, `%read` orange, `&general` green). In vim,
@@ -132,9 +136,15 @@ Details behind the columns:
   mode border, not zentui's box. That happens with vim + zentui and no
   pi-mention loaded, so it is their interaction rather than a pi-mention
   regression. Colours, pickers, motions, wrapping and resizing still pass.
-- **Fail-safe scope.** zentui-first was exercised for colour, the `$` picker
-  and untouched text. Motions, wrapping and resizing are the plain editor
-  without decoration, covered by the stock row.
+- **Fail-safe scope.** zentui-first was exercised with no vim, vim before
+  zentui, and vim after pi-mention. Each gave one notice and no mention
+  colours. All five pickers (`$`, `%`, `&`, `@`, `/`) opened, narrowed and
+  cancelled with Esc, leaving the typed prefix. `&` has one role (`general`),
+  so its list stayed at one entry while `$` narrowed 5→1, `%` 4→2, `@` 5→1
+  and `/` 5→3. A long URL plus `😀 日本語END` wrapped in the frame and survived
+  a 120x42→60x30 resize. Cursor motion and delete/undo were not separately
+  exercised in this order; they are the plain zentui editor without
+  decoration.
 - **Send.** A real TUI submit under a local OpenAI-compatible mock provider
   produced the exact model-facing message, described next.
 
@@ -192,16 +202,30 @@ Loading vim **after** pi-mention used to lose every colour silently. vim writes
 its mode label into the bottom border (`──── NORMAL ────`), and the extension's
 frame proof compared the rendered border byte-for-byte with the unlabelled one.
 It therefore refused to paint. The fix in `src/pi/editor.ts` recognises
-`pi-vim-editor`'s `Symbol.for("pi-vim-editor")` and accepts a border that is the
-same frame at the same width with the same corners, allowing the replaced dash
-run. Stock and zentui frames still take the strict byte-for-byte path.
+`pi-vim-editor`'s `Symbol.for("pi-vim-editor")` and keeps the proof narrow:
 
-A regression test in `test/editor-frame.test.ts` covers the labelled border,
-the unlabelled border, a shorter border and a different-width frame.
+- the top border is always compared byte-for-byte;
+- the bottom border is byte-for-byte unless vim is present;
+- with vim present, both plain rows must still be exactly `width` cells with
+  matching corners, and the changed run in the expected row must be one
+  contiguous run of `─` cells while the corresponding run in the rendered row
+  is a non-empty label containing no `─`.
+
+That accepts `──── NORMAL ────` wherever it sits inside the dash run, and
+rejects a title inserted into other border content or a label split across two
+runs. Stock and zentui frames still take the strict path on both borders. The
+escape stripping now comes from `stripAnsi` in `src/core/paint.ts`, so the frame
+proof and painting share one escape grammar instead of two disagreeing regexes.
+
+A regression test in `test/editor-frame.test.ts` covers the labelled and
+unlabelled bottom border, a moved label, a shorter border, a different-width
+frame, a label over non-dash content, two changed runs and the strict top
+border. `test/paint.test.ts` covers `stripAnsi` for CSI, OSC/APC and
+unterminated strings.
 
 ## Checks
 
-- `npm test`: 162 passing (159 before the fix, plus 3 frame tests).
+- `npm test`: 169 passing (162 before the fix, plus 7 frame and escape tests).
 - `npm run typecheck`: clean.
 - `npm run format:check`: clean.
 
@@ -215,5 +239,7 @@ the unlabelled border, a shorter border and a different-width frame.
 - Terminals other than 120x42 and 60x30, and non-UTF-8 locales.
 - Visual block (`Ctrl-V`) and vim's search while a picker is open. Only Visual
   character mode was needed for the matrix.
+- Vim configured to put its mode label on the top border. The top border stays
+  strict by design; the default bottom label is what the matrix exercised.
 - Binary screenshots are deliberately not committed; the ANSI and text
   excerpts above are the evidence. Raw captures are in `/tmp`, not the repo.
