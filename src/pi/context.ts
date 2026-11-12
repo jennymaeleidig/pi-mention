@@ -3,7 +3,7 @@ import {
   dedupeToolTargets,
   expandRoles,
   expandTools,
-  skillBlockBounds,
+  proseStart,
   toolBlockEntries,
   toolBlockText,
   unescapeExpandedText,
@@ -16,7 +16,9 @@ import { toolCatalog } from "./catalogs/tools.ts";
 
 /** Adapter inputs for role discovery: the session cwd and an optional agent dir. */
 export interface ContextExpansionOptions {
+  /** Session working directory; defaults to `process.cwd()`. */
   cwd?: string;
+  /** Test seam: isolates role discovery from the user's real agent directory. */
   agentDir?: string;
 }
 
@@ -26,11 +28,9 @@ interface ExpandedText {
 }
 
 /** True when the text has prose after any leading native skill block. */
-function hasProse(text: string): boolean {
-  const block = skillBlockBounds(text);
-  if (!block) return text.trim() !== "";
-  if (block.end === undefined) return false;
-  return text.slice(block.end).trim() !== "";
+function hasProseAfterSkillBlock(text: string): boolean {
+  const start = proseStart(text);
+  return start !== undefined && text.slice(start).trim() !== "";
 }
 
 /**
@@ -95,7 +95,7 @@ export function installContextExpansion(
       }
 
       if (allowRole) {
-        expandedText = expandRoles(expandedText, resolved, live, settings).text;
+        expandedText = expandRoles(expandedText, resolved, live).text;
       }
       return { text: unescapeExpandedText(expandedText, settings), entries };
     };
@@ -117,7 +117,7 @@ export function installContextExpansion(
       const content = message.content.map((part) => {
         if (part.type !== "text") return part;
         const allowRole = !proseSeen;
-        if (hasProse(part.text)) proseSeen = true;
+        if (hasProseAfterSkillBlock(part.text)) proseSeen = true;
         const { text, entries } = expandText(part.text, allowRole);
         allEntries.push(...entries);
         if (text === part.text) return part;

@@ -118,6 +118,9 @@ The user selected the `general` role but gave no task. Do not call the `subagent
 
 - The transcript keeps the typed `&role` token; only the expanded message has
   the dispatch prefix.
+- A task that is only whitespace and `,.;:!?)]}` is no task. Leading whitespace
+  and that punctuation are stripped from a real task, so `&general, do it`
+  dispatches the task `do it`.
 - A role that resolves to a profile-only name is unresolved and stays literal.
 
 ## Table
@@ -140,6 +143,8 @@ The user selected the `general` role but gave no task. Do not call the `subagent
 | `&general summarise this`        | role `general`      | dispatch prefix + `\n\nsummarise this`                 | `&general summarise this`                |
 | `please &general summarise this` | role `general`      | unchanged                                              | `please &general summarise this`         |
 | `&general`                       | role `general`      | no-task dispatch text                                  | `&general`                               |
+| `&general,`                      | role `general`      | no-task dispatch text                                  | `&general,`                              |
+| `&general, do it`                | role `general`      | dispatch prefix + `\n\ndo it`                          | `&general, do it`                        |
 | `&general x &general y`          | role `general`      | dispatch prefix + `\n\nx &general y`                   | unchanged                                |
 | `\$PATH`                         | none                | `$PATH`                                                | `\$PATH`                                 |
 | fenced `%bash`                   | none                | unchanged                                              | unchanged                                |
@@ -169,7 +174,6 @@ expandRoles(
   message: string,
   resolved: ResolvedMention[],
   catalogs: Catalogs,
-  config: Settings,
 ): ExpandedMessage
 
 toolBlockEntries(
@@ -195,8 +199,8 @@ for a multi-part message. `toolBlockEntries` returns the distinct targets a
 message contributes, and `toolBlockText` renders them, so a multi-part message
 can share one block after its last text part.
 
-`expandRoles` takes the message text, the already-resolved role mentions, the
-plain-data catalogs and configuration. Only the first non-whitespace prose token,
+`expandRoles` takes the message text, the already-resolved role mentions and the
+plain-data catalogs. Only the first non-whitespace prose token,
 after any native skill block, is eligible. A resolved role is replaced in place
 by the dispatch prefix; the rest of the prose is the task after a blank line, or
 the no-task text when nothing follows. Every other role mention stays literal.

@@ -7,7 +7,7 @@ names an agent role, and `@` paths and URLs are coloured while you type.
 > `%` tool and `&` role expansion are live. A sent `$skill` becomes Pi's native
 > `[skill] name (ctrl+o to expand)` entry; a sent `%tool` reaches the model as
 > its registered name plus a `<tool_mentions>` block. A leading `&role`
-> becomes a `subagent` dispatch instruction naming `agent: "<role>"`. See the
+> becomes a `subagent` dispatch prefix naming `agent: "<role>"`. See the
 > [map issue](https://github.com/jennymaeleidig/pi-mention/issues/1).
 
 ## Colours

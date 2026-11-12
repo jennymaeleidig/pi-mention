@@ -29,6 +29,16 @@ export function skillBlockBounds(text: string): { start: number; end?: number } 
 }
 
 /**
+ * The offset where prose begins, after any leading native skill block. An
+ * unterminated skill block has no prose start.
+ */
+export function proseStart(text: string): number | undefined {
+  const block = skillBlockBounds(text);
+  if (!block) return 0;
+  return block.end;
+}
+
+/**
  * Build Pi's byte-exact skill block.
  *
  * The body is normalised to LF and trimmed. A quote or newline in the name or
@@ -167,10 +177,10 @@ function leadingRoleMention(
   message: string,
   resolved: readonly ResolvedMention[],
 ): ResolvedMention | undefined {
-  const block = skillBlockBounds(message);
-  if (block && block.end === undefined) return undefined;
+  const prose = proseStart(message);
+  if (prose === undefined) return undefined;
 
-  let start = block?.end ?? 0;
+  let start = prose;
   while (isWhitespace(message[start])) start++;
 
   return resolved.find(
@@ -178,17 +188,24 @@ function leadingRoleMention(
   );
 }
 
-/** Prefer the live catalog entry, so expansion names the role the spawner knows. */
+/**
+ * Prefer the live catalog entry, so expansion names the role the spawner knows.
+ * An out-of-catalog role stays literal by design: the role must still be live to
+ * dispatch.
+ */
 function liveRoleTarget(target: Target, catalogs: Catalogs): Target | undefined {
   return catalogs.roles.find(
-    (candidate) =>
-      candidate.label === target.label &&
-      (candidate.name ?? candidate.label) === (target.name ?? target.label),
+    (candidate) => candidate.label === target.label && toolKey(candidate) === toolKey(target),
   );
 }
 
-function roleName(target: Target): string {
-  return target.name ?? target.label;
+/** Leading whitespace and punctuation that do not count as a task. */
+const TASK_PUNCTUATION = /^[\s,.;:!?)\]}]+/u;
+
+/** The task after a role mention, or undefined when it carries only punctuation. */
+function roleTask(text: string): string | undefined {
+  const task = text.trim().replace(TASK_PUNCTUATION, "");
+  return task === "" ? undefined : task;
 }
 
 /** The leading-only dispatch prefix from the expansion contract. */
@@ -219,15 +236,16 @@ function roleNoTaskText(name: string): string {
  * Only the first non-whitespace prose token, after any native skill block, is
  * eligible. A resolved role is replaced in place by the dispatch prefix and the
  * rest of the message becomes the task after a blank line; with no task the
- * mention becomes the no-task instruction instead. Unresolved, excluded,
- * mid-sentence, later and code mentions stay literal. The role body is never
- * inlined, and this function performs no I/O.
+ * mention becomes the no-task instruction instead. A task that is only
+ * whitespace and punctuation is no task, and leading punctuation is stripped
+ * from a real task. Unresolved, excluded, mid-sentence, later and code mentions
+ * stay literal. The role body is never inlined, and this function performs no
+ * I/O.
  */
 export function expandRoles(
   message: string,
   resolved: readonly ResolvedMention[],
   catalogs: Catalogs,
-  _settings: Settings,
 ): ExpandedMessage {
   const mention = leadingRoleMention(message, resolved);
   if (!mention?.target || mention.status !== "resolved") return { text: message };
@@ -235,9 +253,9 @@ export function expandRoles(
   const target = liveRoleTarget(mention.target, catalogs);
   if (!target) return { text: message };
 
-  const name = roleName(target);
+  const name = toolKey(target);
   const before = message.slice(0, mention.mention.span.start);
-  const task = message.slice(mention.mention.span.end).trim();
+  const task = roleTask(message.slice(mention.mention.span.end));
   return {
     text: task
       ? `${before}${roleDispatchPrefix(name)}\n\n${task}`
@@ -305,15 +323,14 @@ function eligibleToolMentions(
   message: string,
   resolved: readonly ResolvedMention[],
 ): ResolvedMention[] {
-  const skillBlock = skillBlockBounds(message);
-  const proseStart = skillBlock ? (skillBlock.end ?? message.length) : 0;
+  const prose = proseStart(message) ?? message.length;
   return resolved
     .filter(
       (candidate) =>
         candidate.mention.class === "tool" &&
         candidate.status === "resolved" &&
         candidate.target !== undefined &&
-        candidate.mention.span.start >= proseStart,
+        candidate.mention.span.start >= prose,
     )
     .sort((a, b) => a.mention.span.start - b.mention.span.start);
 }

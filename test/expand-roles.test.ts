@@ -5,6 +5,7 @@ import { parse, triggerSpecs } from "../src/core/grammar.ts";
 import { resolve } from "../src/core/resolve.ts";
 import { defaultSettings } from "../src/core/settings.ts";
 import type { Catalogs, Settings } from "../src/core/types.ts";
+import { dispatch, noTask } from "./fixtures/role-text.ts";
 
 const catalogs: Catalogs = {
   skills: [],
@@ -15,26 +16,6 @@ const catalogs: Catalogs = {
   ],
   paths: { has: () => false },
 };
-
-function dispatch(name: string, task: string): string {
-  return (
-    `[subagent dispatch: role "${name}"]\n` +
-    `Call the \`subagent\` tool now and delegate the rest of this message to the \`${name}\` role. ` +
-    `Call it with \`tasks: [{ "agent": "${name}", "task": "<the rest of this message>" }]\`, ` +
-    `using the text after this line as the \`task\` brief. ` +
-    "Make the brief self-contained: if it refers to earlier conversation, restate what the subagent needs, " +
-    "but keep the user's intent and wording. " +
-    `Do not do the task yourself.\n\n${task}`
-  );
-}
-
-function noTask(name: string): string {
-  return (
-    `[subagent dispatch: role "${name}"]\n` +
-    `The user selected the \`${name}\` role but gave no task. ` +
-    `Do not call the \`subagent\` tool. Ask the user what to delegate to \`${name}\`.`
-  );
-}
 
 function expanded(
   text: string,
@@ -47,7 +28,7 @@ function expanded(
     roleCatalogs,
     settings,
   );
-  return expandRoles(text, resolved, roleCatalogs, settings);
+  return expandRoles(text, resolved, roleCatalogs);
 }
 
 const skillBlock = buildSkillBlock({
@@ -70,6 +51,18 @@ test("a leading role with a task becomes the dispatch instruction", () => {
 test("a leading role with no task asks instead of emitting a malformed call", () => {
   assert.deepEqual(expanded("&general"), { text: noTask("general") });
   assert.deepEqual(expanded("&general   "), { text: noTask("general") });
+  for (const punctuation of [",", ".", "!", ";", ",.;:!?)]}"]) {
+    assert.deepEqual(expanded(`&general${punctuation}`), { text: noTask("general") });
+  }
+});
+
+test("punctuation after a leading role is stripped from a real task", () => {
+  assert.deepEqual(expanded("&general, do it"), {
+    text: dispatch("general", "do it"),
+  });
+  assert.deepEqual(expanded("&general:  do it"), {
+    text: dispatch("general", "do it"),
+  });
 });
 
 test("only the first non-whitespace role mention expands", () => {
@@ -112,6 +105,13 @@ test("a leading role after the native skill block expands and the block stays op
     body: "&general do not expand me",
   })!;
   assert.deepEqual(expanded(opaque), { text: opaque });
+});
+
+test("an unterminated skill block has no prose start", () => {
+  const open = skillBlock.slice(0, skillBlock.indexOf("\n\n"));
+  assert.deepEqual(expanded(`${open}\n\n&general do it`), {
+    text: `${open}\n\n&general do it`,
+  });
 });
 
 test("code mentions and prose without a leading role are unchanged", () => {
