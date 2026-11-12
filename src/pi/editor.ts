@@ -20,6 +20,7 @@ type Port = {
 
 const DONE = Symbol.for("pi-mention.decorated");
 const ZENTUI_FACTORY = Symbol.for("pi-zentui.editor-factory");
+const VIM_EDITOR = Symbol.for("pi-vim-editor");
 
 function isZentuiFactory(factory: unknown): boolean {
   return Boolean((factory as Record<symbol, unknown> | undefined)?.[ZENTUI_FACTORY]);
@@ -39,6 +40,32 @@ function innermost(editor: object): object {
     current = base;
   }
   return current;
+}
+
+/** Visible text of a rendered row, with every escape sequence removed. */
+function plain(line: string): string {
+  return line.replace(
+    /\u001b(?:\[[0-?]*[ -/]*[@-~]|[_\]P][^\u0007\u001b]*(?:\u0007|\u001b\\))/g,
+    "",
+  );
+}
+
+/**
+ * True when `line` is the frame `expected`, allowing pi-vim-editor's mode
+ * label: vim replaces a run of border dashes with its status, so the row is
+ * still the same frame at the same width.
+ */
+export function sameFrame(line: string, expected: string, width: number, vim: boolean): boolean {
+  if (line === expected) return true;
+  if (!vim) return false;
+  const got = plain(line);
+  const want = plain(expected);
+  return (
+    got.length === width &&
+    want.length === width &&
+    got.charAt(0) === want.charAt(0) &&
+    got.charAt(got.length - 1) === want.charAt(want.length - 1)
+  );
 }
 
 /** True when an SGR prefix actually sets a foreground colour. */
@@ -111,8 +138,15 @@ function installDecoration(
     const scroll = port.scrollOffset ?? 0;
     if (!theme || !layout || rows <= 0 || lines.length < rows + 2) return lines;
     // Refuse to touch anything that is not Pi's own frame: a framer may have
-    // rendered the base at another width, or replaced these rows.
-    if (lines[0] !== topLine || lines[rows + 1] !== bottomLine) return lines;
+    // rendered the base at another width, or replaced these rows. Vim is the
+    // one framer we compose with; it writes its mode label into a border.
+    const vim = VIM_EDITOR in port;
+    if (
+      !sameFrame(lines[0] ?? "", topLine, width, vim) ||
+      !sameFrame(lines[rows + 1] ?? "", bottomLine, width, vim)
+    ) {
+      return lines;
+    }
 
     const perLine = spansForLines(port.getLines());
     if (perLine.every((spans) => spans.length === 0)) return lines;

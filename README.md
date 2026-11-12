@@ -24,6 +24,8 @@ so they follow the active theme. Configure them under `piMention.colors`.
   outermost autocomplete provider wins. If that happens, change the trigger
   under `piMention.triggers` in `~/.pi/agent/settings.json` or
   `.pi/settings.json`.
+- The tested combinations, load orders and fail-safe behaviour are in
+  [docs/compatibility.md](docs/compatibility.md).
 
 ## Settings
 
