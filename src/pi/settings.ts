@@ -1,45 +1,30 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { defaultSettings } from "../core/settings.ts";
-import type { ColourSettings, Settings, UrlSettings } from "../core/types.ts";
+import { loadSettings } from "../core/settings.ts";
+import type { Diagnostic, Settings } from "../core/types.ts";
 
-interface RawMentionSettings {
-  colors?: Partial<ColourSettings>;
-  url?: Partial<UrlSettings>;
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+export interface LoadedSettings {
+  settings: Settings;
+  diagnostics: Diagnostic[];
 }
 
 /**
- * Read the colour-relevant part of `piMention`.
+ * Read the effective `piMention` object from pi's merged settings.
  *
- * Full validation, diagnostics, exclusions and trigger overrides land in #19;
- * this seam already accepts the effective object so the colour layer never
- * hard-codes a user's palette.
+ * `pi.getSettings()` already merges `~/.pi/agent/settings.json` with the
+ * project's `.pi/settings.json`. The pure `loadSettings` seam owns validation,
+ * per-key defaults and diagnostics.
  */
-export function readSettings(pi: ExtensionAPI): Settings {
-  const settings = defaultSettings();
+export function readSettings(pi: ExtensionAPI): LoadedSettings {
   let raw: unknown;
   try {
     raw = (pi.getSettings() as { piMention?: unknown }).piMention;
   } catch {
-    return settings;
+    return loadSettings(undefined);
   }
-  if (!isObject(raw)) return settings;
+  return loadSettings(raw);
+}
 
-  const mention = raw as RawMentionSettings;
-  if (isObject(mention.colors)) {
-    for (const key of Object.keys(settings.colors) as Array<keyof ColourSettings>) {
-      const value = mention.colors[key];
-      if (typeof value === "string") settings.colors[key] = value;
-    }
-  }
-  if (isObject(mention.url) && Array.isArray(mention.url.sourceExtensions)) {
-    const extensions = mention.url.sourceExtensions.filter(
-      (value): value is string => typeof value === "string",
-    );
-    settings.url.sourceExtensions = extensions;
-  }
-  return settings;
+/** One warning line for the diagnostics that session_start shows once. */
+export function settingsWarning(diagnostics: readonly Diagnostic[]): string {
+  return `pi-mention settings: ${diagnostics.map((diagnostic) => diagnostic.message).join(" ")}`;
 }

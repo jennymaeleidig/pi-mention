@@ -7,6 +7,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { isLabel, isToolLabel, scanMentionEnd, type TriggerSpec } from "../core/grammar.ts";
 import { findPickerToken, orderMatches, rankTargets } from "../core/picker.ts";
+import { isExcluded } from "../core/resolve.ts";
 import type { PickerClass, SelectionHistory } from "../core/selection.ts";
 import type { Catalogs, Settings, Target } from "../core/types.ts";
 import { SKILL_COMMAND_PREFIX } from "./catalogs/skills.ts";
@@ -24,7 +25,6 @@ interface MentionProvider {
   suffix: string;
   pinned: readonly string[];
   projectFirst: boolean;
-  excludeKey: keyof Settings["exclude"];
   catalog(catalogs: CatalogView): readonly Target[];
 }
 
@@ -37,7 +37,6 @@ function providersFor(settings: Settings): MentionProvider[] {
       suffix: settings.completionSuffix,
       pinned: settings.ranking.pinned.skills,
       projectFirst: settings.ranking.projectSkillsFirst,
-      excludeKey: "skills",
       catalog: (catalogs) => catalogs.skills,
     },
     {
@@ -47,7 +46,6 @@ function providersFor(settings: Settings): MentionProvider[] {
       suffix: settings.completionSuffix,
       pinned: settings.ranking.pinned.tools,
       projectFirst: false,
-      excludeKey: "tools",
       catalog: (catalogs) => catalogs.tools,
     },
     {
@@ -57,7 +55,6 @@ function providersFor(settings: Settings): MentionProvider[] {
       suffix: settings.completionSuffix,
       pinned: settings.ranking.pinned.roles,
       projectFirst: false,
-      excludeKey: "roles",
       catalog: (catalogs) => catalogs.roles,
     },
   ];
@@ -67,12 +64,6 @@ function textBeforeCursor(lines: string[], cursorLine: number, cursorCol: number
   const current = (lines[cursorLine] ?? "").slice(0, cursorCol);
   if (cursorLine === 0) return current;
   return `${lines.slice(0, cursorLine).join("\n")}\n${current}`;
-}
-
-function isExcluded(target: Target, provider: MentionProvider, settings: Settings): boolean {
-  const exclusions = settings.exclude[provider.excludeKey];
-  if (exclusions.includes(target.label)) return true;
-  return provider.class === "tool" && target.name !== undefined && exclusions.includes(target.name);
 }
 
 function filterSlashSkills(
@@ -141,7 +132,7 @@ export function createMentionAutocomplete(
       const targets = provider
         .catalog(options.catalogs())
         .filter((target) => provider.accepts(target.label))
-        .filter((target) => !isExcluded(target, provider, options.settings));
+        .filter((target) => !isExcluded(target, options.settings));
       const ranking = { pinned: provider.pinned, projectFirst: provider.projectFirst };
       const ranked = token.query
         ? orderMatches(

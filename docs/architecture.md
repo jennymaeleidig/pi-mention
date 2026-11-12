@@ -149,7 +149,10 @@ The extension reads one top-level key:
 `loadSettings` validates the effective object. An invalid value falls back to
 the code default for that key and produces one diagnostic; diagnostics are
 notified once at `session_start`. A malformed `piMention` value (not an object)
-falls back to all defaults with one diagnostic.
+falls back to all defaults with one diagnostic. Unknown keys are ignored and
+never change behaviour. pi 1.5.2 has no settings-change event, so an edited key
+takes effect on the next session start or `/reload`, which rebinds the
+extension and re-reads the key.
 
 ## Selection history
 
@@ -163,8 +166,9 @@ Frecency is state, not configuration:
 
 ## Trigger collisions
 
-At load, the three triggers must be distinct, one character, not whitespace and
-not `/`. An invalid value falls back to its default with a diagnostic.
+At load, the three triggers must be distinct, one character, not whitespace,
+not `/`, and not `@` (reserved for paths). An invalid value falls back to its
+default with a diagnostic.
 
 Another extension claiming the same character cannot be detected reliably. The
 outermost autocomplete provider wins; the configurable trigger is the escape

@@ -31,6 +31,38 @@ test("the extension registers only its session_start handler", () => {
   assert.deepEqual(events, ["session_start"]);
 });
 
+test("session_start warns once about a broken piMention", () => {
+  type Handler = (
+    event: unknown,
+    ctx: { mode: string; ui: { notify: (message: string, type?: string) => void } },
+  ) => void;
+  let handler: Handler | undefined;
+  const pi = {
+    on: (name: string, callback: unknown) => {
+      if (name === "session_start") handler = callback as Handler;
+    },
+    getSettings: () => ({ piMention: "broken" }),
+  } as unknown as ExtensionAPI;
+
+  piMention(pi);
+
+  const notifications: Array<{ message: string; type?: string }> = [];
+  const ctx = {
+    mode: "rpc",
+    ui: {
+      notify: (message: string, type?: string) =>
+        notifications.push({ message, ...(type ? { type } : {}) }),
+    },
+  };
+
+  handler?.({ type: "session_start", reason: "startup" }, ctx);
+  handler?.({ type: "session_start", reason: "reload" }, ctx);
+
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0]?.type, "warning");
+  assert.match(notifications[0]?.message ?? "", /piMention must be an object/);
+});
+
 test("loading the entry writes nothing", () => {
   const result = spawnSync(
     process.execPath,

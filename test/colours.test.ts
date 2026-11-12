@@ -27,6 +27,24 @@ test("colourLines paints every class on one line", () => {
   );
 });
 
+test("configured triggers and colour roles drive the painter", () => {
+  const custom = defaultSettings();
+  custom.triggers.skill = "!";
+  custom.colors.skill = "syntaxKeyword";
+  custom.colors.url = "accent";
+
+  const text = "!wayfinder %read https://example.com";
+  const [spans] = colourLines(text, catalogs, custom);
+  assert.deepEqual(
+    spans?.map((span) => [text.slice(span.start, span.end), span.role]),
+    [
+      ["!wayfinder", "syntaxKeyword"],
+      ["%read", "accent"],
+      ["https://example.com", "accent"],
+    ],
+  );
+});
+
 test("colourLines marks unresolved mentions and ignores code", () => {
   const text = "$unknown `%read` @docs/nope.md";
   const [spans] = colourLines(text, catalogs, settings);

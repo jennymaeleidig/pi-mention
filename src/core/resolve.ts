@@ -14,8 +14,8 @@ function entriesFor(mention: Mention, catalogs: Catalogs): readonly Target[] {
   }
 }
 
-function exclusionsFor(mention: Mention, settings: Settings): readonly string[] {
-  switch (mention.class) {
+function exclusionsFor(target: Target, settings: Settings): readonly string[] {
+  switch (target.class) {
     case "skill":
       return settings.exclude.skills;
     case "tool":
@@ -25,6 +25,13 @@ function exclusionsFor(mention: Mention, settings: Settings): readonly string[] 
     default:
       return [];
   }
+}
+
+/** True when configuration removed this target from its catalog. */
+export function isExcluded(target: Target, settings: Settings): boolean {
+  const exclusions = exclusionsFor(target, settings);
+  if (exclusions.includes(target.label)) return true;
+  return target.class === "tool" && target.name !== undefined && exclusions.includes(target.name);
 }
 
 function longestEntry(label: string, entries: readonly Target[]): Target | undefined {
@@ -92,7 +99,7 @@ function resolveOne(mention: Mention, catalogs: Catalogs, settings: Settings): R
   const entry = longestEntry(mention.label, entriesFor(mention, catalogs));
   if (!entry) return { mention, status: "unresolved" };
 
-  const excluded = exclusionsFor(mention, settings).includes(entry.label);
+  const excluded = isExcluded(entry, settings);
   return resolvedMention(mention, entry, excluded ? "excluded" : "resolved", entry.label);
 }
 

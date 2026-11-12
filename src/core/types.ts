@@ -73,6 +73,12 @@ export interface UrlSettings {
   sourceExtensions: readonly string[];
 }
 
+/** One settings problem: the key that fell back and a user-facing message. */
+export interface Diagnostic {
+  key: string;
+  message: string;
+}
+
 export interface Settings {
   triggers: { skill: string; tool: string; role: string };
   completionSuffix: string;

@@ -114,6 +114,16 @@ test("each trigger opens its own class with the short label as the value", async
   assert.equal(roles?.items[0]?.description, "General-purpose agent");
 });
 
+test("configured triggers open their class and seed the completion", async () => {
+  const settings = defaultSettings();
+  settings.triggers.skill = "!";
+  const { provider } = picker({ settings });
+
+  assert.deepEqual(provider.triggerCharacters, ["@", "!", "%", "&"]);
+  assert.deepEqual(values(await suggest(provider, ["!"])), ["!tdd", "!code-review", "!alpha"]);
+  assert.equal(await suggest(provider, ["$"]), null);
+});
+
 test("typing narrows by case-insensitive fuzzy label matching", async () => {
   const { provider } = picker();
   assert.deepEqual(values(await suggest(provider, ["$co"])), ["$code-review"]);
@@ -173,6 +183,23 @@ test("a following terminator suppresses the completion suffix", async () => {
   assert.ok(skill);
   const afterQuestion = provider.applyCompletion(["$td?"], 0, 3, skill, "$td");
   assert.deepEqual(afterQuestion.lines, ["$tdd?"]);
+});
+
+test("exclusions remove a target from the picker by label or registered name", async () => {
+  const settings = defaultSettings();
+  settings.exclude.skills = ["tdd"];
+  settings.exclude.tools = ["mcp__kagi__kagi_search_fetch"];
+  settings.exclude.roles = ["general"];
+  const { provider } = picker({ settings });
+
+  assert.deepEqual(values(await suggest(provider, ["$"])), ["$code-review", "$alpha"]);
+  assert.deepEqual(values(await suggest(provider, ["%"])), ["%bash"]);
+  assert.equal(await suggest(provider, ["&"]), null);
+
+  const byLabel = defaultSettings();
+  byLabel.exclude.tools = ["bash"];
+  const labelled = picker({ settings: byLabel }).provider;
+  assert.deepEqual(values(await suggest(labelled, ["%"])), ["%kagi:kagi_search_fetch"]);
 });
 
 test("pinned targets stay first for a non-empty fuzzy query", async () => {

@@ -6,20 +6,34 @@ import { skillCatalog } from "./catalogs/skills.ts";
 import { toolCatalog } from "./catalogs/tools.ts";
 import { spansForLinesFactory } from "./colours.ts";
 import { installEditorColours } from "./editor.ts";
-import { readSettings } from "./settings.ts";
+import { readSettings, settingsWarning, type LoadedSettings } from "./settings.ts";
 
 /**
  * Register the extension's pi surface. This is the one place that talks to
  * `ExtensionAPI`; the colour layer itself is pure.
+ *
+ * pi 1.5.2 has no settings-change event. `pi.getSettings()` is read on
+ * `session_start`, so an edited key takes effect on the next session or
+ * `/reload`, which rebinds extensions.
  */
 export function register(pi: ExtensionAPI): void {
+  let loaded: LoadedSettings | undefined;
+  let notified = false;
   let installed = false;
 
   pi.on("session_start", (_event, ctx) => {
+    loaded ??= readSettings(pi);
+    if (!notified) {
+      notified = true;
+      if (loaded.diagnostics.length > 0) {
+        ctx.ui.notify(settingsWarning(loaded.diagnostics), "warning");
+      }
+    }
+
     if (ctx.mode !== "tui" || installed) return;
     installed = true;
 
-    const settings = readSettings(pi);
+    const { settings } = loaded;
     const paths = pathCatalog(ctx.cwd);
     const catalogs = {
       skills: skillCatalog(pi),

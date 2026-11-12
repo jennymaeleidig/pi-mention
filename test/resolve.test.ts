@@ -93,6 +93,30 @@ test("an excluded target is excluded, not unresolved", () => {
   assert.equal(resolved?.target?.label, "tdd");
 });
 
+test("tool exclusions match the registered name as well as the label", () => {
+  const byName = defaultSettings();
+  byName.exclude.tools = ["mcp__kagi__kagi_search_fetch"];
+  const [chain] = resolveText("%kagi:kagi_search_fetch", byName);
+  assert.equal(chain?.status, "excluded");
+  assert.equal(chain?.target?.label, "kagi:kagi_search_fetch");
+
+  const byLabel = defaultSettings();
+  byLabel.exclude.tools = ["bash"];
+  assert.equal(resolveText("%bash", byLabel)[0]?.status, "excluded");
+});
+
+test("skill and role exclusions use the label only", () => {
+  const settings = defaultSettings();
+  settings.exclude.skills = ["skill:tdd"];
+  assert.equal(resolveText("$tdd", settings)[0]?.status, "resolved");
+
+  settings.exclude.skills = ["tdd"];
+  assert.equal(resolveText("$tdd", settings)[0]?.status, "excluded");
+
+  settings.exclude.roles = ["general"];
+  assert.equal(resolveText("&general", settings)[0]?.status, "excluded");
+});
+
 test("paths are not treated as expandable exclusions", () => {
   const settings = defaultSettings();
   settings.exclude.skills = ["src/foo.ts"];
