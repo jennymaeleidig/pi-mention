@@ -170,7 +170,7 @@ hatch. The README states both facts.
 Node test runner, no browser and no live pi session in the unit suite.
 
 - Golden tests for every grammar example and every row of the expansion table.
-- Pure `colourSpans` tests, including cursor splitting and escape preservation.
+- Pure `colourSpans` tests, including cursor-grapheme handling and escape preservation.
 - Fixture-driven catalog tests, one per target class.
 - Settings validation tests, including per-key fallback and diagnostics.
 - One wiring smoke test with a fake `ExtensionAPI` that drives the real
