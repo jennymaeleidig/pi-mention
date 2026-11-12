@@ -209,11 +209,6 @@ function toolBlockLine(target: Target): string {
   return `- \`${name}\` — call it directly. Signature: ${toolFallbackSignature(target)}`;
 }
 
-interface ExpandToolsOptions {
-  /** False when the caller joins several text parts into one block. */
-  appendBlock?: boolean;
-}
-
 function eligibleToolMentions(
   message: string,
   resolved: readonly ResolvedMention[],
@@ -236,15 +231,6 @@ function uniqueToolTargets(mentions: readonly ResolvedMention[], catalogs: Catal
   );
 }
 
-/** The distinct targets one message's tool block lists, in first-occurrence order. */
-function toolBlockEntries(
-  message: string,
-  resolved: readonly ResolvedMention[],
-  catalogs: Catalogs,
-): Target[] {
-  return uniqueToolTargets(eligibleToolMentions(message, resolved), catalogs);
-}
-
 /** Render the one `<tool_mentions>` block that follows the prose. */
 function toolBlockText(entries: readonly Target[]): string {
   return `<tool_mentions>\n${entries.map(toolBlockLine).join("\n")}\n</tool_mentions>`;
@@ -263,7 +249,6 @@ function expandTools(
   message: string,
   resolved: readonly ResolvedMention[],
   catalogs: Catalogs,
-  options: ExpandToolsOptions = {},
 ): ExpandedText {
   const mentions = eligibleToolMentions(message, resolved);
   if (mentions.length === 0) return { text: message, entries: [] };
@@ -274,10 +259,7 @@ function expandTools(
     const { start, end } = candidate.mention.span;
     text = `${text.slice(0, start)}\`${targetKey(target)}\`${text.slice(end)}`;
   }
-  const entries = uniqueToolTargets(mentions, catalogs);
-  if (options.appendBlock === false) return { text, entries };
-
-  return { text: `${text}\n\n${toolBlockText(entries)}`, entries };
+  return { text, entries: uniqueToolTargets(mentions, catalogs) };
 }
 
 /**
@@ -311,7 +293,7 @@ function expandText(
   let expandedText = text;
   let entries: Target[] = [];
   if (resolved.some((mention) => mention.mention.class === "tool")) {
-    const tools = expandTools(text, resolved, catalogs, { appendBlock: false });
+    const tools = expandTools(text, resolved, catalogs);
     expandedText = tools.text;
     entries = tools.entries;
   }
