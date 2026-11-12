@@ -275,10 +275,11 @@ the tool block lists each distinct target once, in first-occurrence order. A
 repeated role mention stays literal after the leading one, and a repeated skill
 beyond the first stays literal.
 
-- Only the **first** `$skill` mention is eligible. Later `$skill` mentions stay
-  literal and are shown as unresolved, even when the first one does not
-  resolve. A message has at most one native skill block, and the skill always
-  comes first; the mention's original position in the prose is lost.
+- Only the **first** `$skill` mention is eligible. Later `$skill` mentions
+  stay literal and never expand, even when the first one does not resolve; when
+  they name a real skill they are still coloured as skills. A message has at
+  most one native skill block, and the skill always comes first; the mention's
+  original position in the prose is lost.
 - Only a **leading** `&role` expands: the first non-whitespace prose token,
   after any skill block. A later or mid-sentence role stays literal. The role
   body is never inlined.
@@ -374,7 +375,7 @@ remove the comment and trailing commas before saving it to `settings.json`.
 | `colors.role`                | `"success"`                                                                                                         | Colour for a resolved agent-role mention.                                                                                                                                                                                |
 | `colors.path`                | `"mdLinkUrl"`                                                                                                       | Colour for a resolved path.                                                                                                                                                                                              |
 | `colors.url`                 | `"mdLink"`                                                                                                          | Colour for a detected URL.                                                                                                                                                                                               |
-| `colors.unresolved`          | `"warning"`                                                                                                         | Colour for an unresolved mention: no target, or a later `$skill` that is not eligible to expand.                                                                                                                         |
+| `colors.unresolved`          | `"warning"`                                                                                                         | Colour for an unresolved mention: a label that names no target in the live catalog.                                                                                                                                      |
 | `colors.excluded`            | `"dim"`                                                                                                             | Colour for a target removed by `exclude`.                                                                                                                                                                                |
 | `url.sourceExtensions`       | `.ts`, `.tsx`, `.js`, `.jsx`, `.md`, `.py`, `.sh`, `.json`, `.yaml`, `.yml`, `.toml`, `.rs`, `.go`, `.css`, `.html` | Fuzzy bare-host URLs whose host ends in one of these stay prose. Explicit `http:`, `https:`, `ftp:` and `mailto:` URLs always colour. The comparison is case-insensitive.                                                |
 

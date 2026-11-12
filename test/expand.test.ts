@@ -160,7 +160,7 @@ test("a missing body lookup leaves the mention literal and reports the failure",
   assert.equal(missing.skillFailure?.name, "tdd");
 });
 
-test("firstResolvedSkill picks the first resolved skill mention", () => {
+test("firstResolvedSkill uses the first skill mention only", () => {
   const { mentions } = parse("$tdd $nope $other", triggerSpecs(defaultSettings()));
   const resolved = resolve(
     mentions.filter((mention) => mention.class === "skill"),
@@ -168,4 +168,13 @@ test("firstResolvedSkill picks the first resolved skill mention", () => {
     defaultSettings(),
   );
   assert.equal(firstResolvedSkill(resolved)?.target?.label, "tdd");
+
+  const later = parse("$nope $tdd", triggerSpecs(defaultSettings()));
+  const laterResolved = resolve(
+    later.mentions.filter((mention) => mention.class === "skill"),
+    catalogs,
+    defaultSettings(),
+  );
+  assert.equal(laterResolved[1]?.status, "resolved");
+  assert.equal(firstResolvedSkill(laterResolved), undefined);
 });

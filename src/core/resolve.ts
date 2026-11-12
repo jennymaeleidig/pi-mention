@@ -109,11 +109,5 @@ export function resolve(
   catalogs: Catalogs,
   settings: Settings,
 ): ResolvedMention[] {
-  let skillSeen = false;
-  return mentions.map((mention) => {
-    if (mention.class !== "skill") return resolveOne(mention, catalogs, settings);
-    if (skillSeen) return { mention, status: "unresolved" };
-    skillSeen = true;
-    return resolveOne(mention, catalogs, settings);
-  });
+  return mentions.map((mention) => resolveOne(mention, catalogs, settings));
 }

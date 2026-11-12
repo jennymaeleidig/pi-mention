@@ -113,8 +113,9 @@ position wins. Duplicate targets are expanded at every occurrence and deduped
 where the expansion contract says so.
 
 Only one native skill block can be parsed per message. The **first** `$skill`
-mention is the only one eligible; later `$skill` mentions stay literal and are
-coloured as unresolved, even when the first mention does not resolve.
+mention is the only one eligible; later `$skill` mentions stay literal and never
+expand, even when the first mention does not resolve. A later mention that
+names a real skill is still coloured as a skill.
 
 ## URLs
 

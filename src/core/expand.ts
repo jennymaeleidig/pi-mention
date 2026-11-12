@@ -58,16 +58,19 @@ export function buildSkillBlock(source: SkillSource): string | undefined {
   );
 }
 
-/** The first skill mention that resolved; later skill mentions stay literal. */
+/**
+ * The first skill mention, when it resolved. Only that mention can become the
+ * skill block: a later skill never expands, even when the first one does not
+ * resolve. Later resolved skills are still coloured as skills.
+ */
 export function firstResolvedSkill(
   resolved: readonly ResolvedMention[],
 ): ResolvedMention | undefined {
-  return resolved
-    .filter(
-      (mention) =>
-        mention.mention.class === "skill" && mention.status === "resolved" && mention.target,
-    )
+  const first = resolved
+    .filter((mention) => mention.mention.class === "skill")
     .sort((a, b) => a.mention.span.start - b.mention.span.start)[0];
+  if (!first || first.status !== "resolved" || !first.target) return undefined;
+  return first;
 }
 
 function isWhitespace(character: string | undefined): boolean {

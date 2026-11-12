@@ -57,6 +57,18 @@ test("colourLines marks unresolved mentions and ignores code", () => {
   );
 });
 
+test("later skills that resolve keep the skill colour", () => {
+  const text = "$wayfinder then $wayfinder";
+  const [spans] = colourLines(text, catalogs, settings);
+  assert.deepEqual(
+    spans?.map((span) => [text.slice(span.start, span.end), span.role]),
+    [
+      ["$wayfinder", "syntaxNumber"],
+      ["$wayfinder", "syntaxNumber"],
+    ],
+  );
+});
+
 test("colourLines projects spans onto the right line", () => {
   const text = "one\n$wayfinder\nthree";
   const lines = colourLines(text, catalogs, settings);
