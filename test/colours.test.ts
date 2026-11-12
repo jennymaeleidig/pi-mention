@@ -5,9 +5,9 @@ import { defaultSettings } from "../src/core/settings.ts";
 import type { Catalogs } from "../src/core/types.ts";
 
 const catalogs: Catalogs = {
-  skills: [{ label: "wayfinder", target: { class: "skill", label: "wayfinder" } }],
-  tools: [{ label: "read", target: { class: "tool", label: "read", name: "read" } }],
-  roles: [{ label: "general", target: { class: "role", label: "general" } }],
+  skills: [{ class: "skill", label: "wayfinder" }],
+  tools: [{ class: "tool", label: "read", name: "read" }],
+  roles: [{ class: "role", label: "general" }],
   paths: { has: (label) => label === "docs/mention-grammar.md" },
 };
 const settings = defaultSettings();

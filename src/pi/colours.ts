@@ -47,11 +47,14 @@ export function spansForLinesFactory(
   settings: Settings,
 ): (lines: string[]) => ColourSpan[][] {
   let lastText: string | undefined;
+  let lastVersion = -1;
   let last: ColourSpan[][] = [];
   return (lines) => {
     const text = lines.join("\n");
-    if (text === lastText) return last;
+    const version = catalogs.paths.version ?? 0;
+    if (text === lastText && version === lastVersion) return last;
     lastText = text;
+    lastVersion = version;
     last = colourLines(text, catalogs, settings);
     return last;
   };

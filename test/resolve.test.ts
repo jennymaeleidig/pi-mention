@@ -15,21 +15,18 @@ const SPECS: TriggerSpec[] = [
 const paths = new Set(["src/foo.ts", "my notes/today.md"]);
 const catalogs: Catalogs = {
   skills: [
-    { label: "tdd", target: { class: "skill", label: "tdd" } },
-    { label: "code-review", target: { class: "skill", label: "code-review" } },
+    { class: "skill", label: "tdd" },
+    { class: "skill", label: "code-review" },
   ],
   tools: [
-    { label: "bash", target: { class: "tool", label: "bash", name: "bash" } },
+    { class: "tool", label: "bash", name: "bash" },
     {
+      class: "tool",
       label: "kagi:kagi_search_fetch",
-      target: {
-        class: "tool",
-        label: "kagi:kagi_search_fetch",
-        name: "mcp__kagi__kagi_search_fetch",
-      },
+      name: "mcp__kagi__kagi_search_fetch",
     },
   ],
-  roles: [{ label: "general", target: { class: "role", label: "general" } }],
+  roles: [{ class: "role", label: "general" }],
   paths: { has: (label) => paths.has(label) },
 };
 
@@ -101,4 +98,26 @@ test("paths are not treated as expandable exclusions", () => {
   settings.exclude.skills = ["src/foo.ts"];
   const [resolved] = resolveText("@src/foo.ts", settings);
   assert.equal(resolved?.status, "resolved");
+});
+
+test("a trailing colon is an incomplete tool chain, never a peeled server", () => {
+  const [resolved] = resolveText("%bash:");
+  assert.equal(resolved?.status, "unresolved");
+  assert.equal(resolved?.mention.label, "bash:");
+});
+
+test("only the first resolving skill expands; later skills are unresolved", () => {
+  const resolved = resolveText("$tdd $code-review");
+  assert.deepEqual(
+    resolved.map((mention) => mention.status),
+    ["resolved", "unresolved"],
+  );
+});
+
+test("an unresolved first skill leaves the next skill eligible", () => {
+  const resolved = resolveText("$nope $tdd");
+  assert.deepEqual(
+    resolved.map((mention) => mention.status),
+    ["unresolved", "resolved"],
+  );
 });

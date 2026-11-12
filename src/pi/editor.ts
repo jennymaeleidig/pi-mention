@@ -1,9 +1,9 @@
 import { CustomEditor, type ExtensionUIContext, type Theme } from "@earendil-works/pi-coding-agent";
-import { paintRow } from "../core/paint.ts";
+import { paintRow, type PaintWrap } from "../core/paint.ts";
 import type { ColourSpan } from "../core/types.ts";
 
 type Role = Parameters<Theme["fg"]>[0];
-type Wrap = { prefix: string; suffix: string };
+type Wrap = PaintWrap;
 
 /** The private slice of pi-tui's Editor a decorator needs. Probed, never assumed. */
 type Port = {
@@ -75,7 +75,14 @@ function installDecoration(
   const marked = editor as Record<symbol, unknown>;
   if (marked[DONE]) return true;
   if (typeof port.render !== "function" || typeof port.getLines !== "function") return false;
-  if (typeof port.renderTopBorder !== "function" || typeof port.renderBottomBorder !== "function") {
+  if (typeof port.buildVisualLineMap !== "function") return false;
+  if (
+    typeof port.renderTopBorder !== "function" ||
+    typeof port.renderBottomBorder !== "function" ||
+    !("lastWidth" in port) ||
+    !("scrollOffset" in port) ||
+    !("renderedVisibleLineCount" in port)
+  ) {
     return false;
   }
   Object.defineProperty(editor, DONE, { value: true });
@@ -132,6 +139,7 @@ function installDecoration(
 export function installEditorColours(
   ui: ExtensionUIContext,
   spansForLines: (lines: string[]) => ColourSpan[][],
+  bindRender?: (requestRender: () => void) => void,
 ): void {
   const previous = ui.getEditorComponent();
   let constructing = false;
@@ -154,6 +162,7 @@ export function installEditorColours(
   }
 
   ui.setEditorComponent((tui, theme, keybindings) => {
+    bindRender?.(() => tui.requestRender());
     // zentui re-installs on settings changes and would otherwise nest its old
     // editor inside this factory. A plain editor is the safe fallback.
     if (constructing) return new CustomEditor(tui, theme, keybindings);

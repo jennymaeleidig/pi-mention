@@ -19,12 +19,15 @@ export function register(pi: ExtensionAPI): void {
     installed = true;
 
     const settings = readSettings(pi);
+    const paths = pathCatalog(ctx.cwd);
     const catalogs = {
       skills: skillCatalog(pi),
       tools: toolCatalog(pi),
       roles: roleCatalog(ctx.cwd),
-      paths: pathCatalog(ctx.cwd),
+      paths,
     };
-    installEditorColours(ctx.ui, spansForLinesFactory(catalogs, settings));
+    installEditorColours(ctx.ui, spansForLinesFactory(catalogs, settings), (requestRender) =>
+      paths.setOnChange(requestRender),
+    );
   });
 }

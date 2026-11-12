@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIG_DIR_NAME, getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
-import type { CatalogEntry, Target } from "../../core/types.ts";
+import type { Target } from "../../core/types.ts";
 
 function readRoles(dir: string, into: Map<string, Target>): void {
   let names: string[];
@@ -31,11 +31,9 @@ function readRoles(dir: string, into: Map<string, Target>): void {
 }
 
 /** Mirror tinysubagent: user roles first, project roles overwrite, sorted by name. */
-export function roleCatalog(cwd: string, agentDir = getAgentDir()): CatalogEntry[] {
+export function roleCatalog(cwd: string, agentDir = getAgentDir()): Target[] {
   const byName = new Map<string, Target>();
   readRoles(join(agentDir, "agents"), byName);
   readRoles(join(cwd, CONFIG_DIR_NAME, "agents"), byName);
-  return [...byName.values()]
-    .sort((a, b) => a.label.localeCompare(b.label))
-    .map((target) => ({ label: target.label, target }));
+  return [...byName.values()].sort((a, b) => a.label.localeCompare(b.label));
 }

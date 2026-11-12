@@ -1,16 +1,7 @@
 import { isPunctuationOnly } from "./grammar.ts";
-import type {
-  CatalogEntry,
-  Catalogs,
-  Mention,
-  ResolvedMention,
-  Settings,
-  Target,
-} from "./types.ts";
+import type { Catalogs, Mention, ResolvedMention, Settings, Target } from "./types.ts";
 
-const PUNCTUATION_ONLY = /^[.,;:!?)\]}]+$/;
-
-function entriesFor(mention: Mention, catalogs: Catalogs): readonly CatalogEntry[] {
+function entriesFor(mention: Mention, catalogs: Catalogs): readonly Target[] {
   switch (mention.class) {
     case "skill":
       return catalogs.skills;
@@ -36,8 +27,8 @@ function exclusionsFor(mention: Mention, settings: Settings): readonly string[] 
   }
 }
 
-function longestEntry(label: string, entries: readonly CatalogEntry[]): CatalogEntry | undefined {
-  let best: CatalogEntry | undefined;
+function longestEntry(label: string, entries: readonly Target[]): Target | undefined {
+  let best: Target | undefined;
   for (const entry of entries) {
     if (!label.startsWith(entry.label)) continue;
     if (!isPunctuationOnly(label.slice(entry.label.length))) continue;
@@ -55,7 +46,7 @@ function longestPath(
   }
   for (let end = label.length - 1; end > 0; end--) {
     const prefix = label.slice(0, end);
-    if (!PUNCTUATION_ONLY.test(label.slice(end))) continue;
+    if (!isPunctuationOnly(label.slice(end))) continue;
     if (paths.has(prefix)) {
       return { label: prefix, target: { class: "path", label: prefix } };
     }
@@ -94,11 +85,15 @@ function resolveOne(mention: Mention, catalogs: Catalogs, settings: Settings): R
     return resolvedMention(mention, hit.target, "resolved", hit.label);
   }
 
+  if (mention.class === "tool" && mention.label.endsWith(":")) {
+    return { mention, status: "unresolved" };
+  }
+
   const entry = longestEntry(mention.label, entriesFor(mention, catalogs));
   if (!entry) return { mention, status: "unresolved" };
 
   const excluded = exclusionsFor(mention, settings).includes(entry.label);
-  return resolvedMention(mention, entry.target, excluded ? "excluded" : "resolved", entry.label);
+  return resolvedMention(mention, entry, excluded ? "excluded" : "resolved", entry.label);
 }
 
 /** Resolve labels against the live catalogs. Pure: all I/O is behind `paths`. */
@@ -107,5 +102,12 @@ export function resolve(
   catalogs: Catalogs,
   settings: Settings,
 ): ResolvedMention[] {
-  return mentions.map((mention) => resolveOne(mention, catalogs, settings));
+  let skillSeen = false;
+  return mentions.map((mention) => {
+    if (mention.class !== "skill") return resolveOne(mention, catalogs, settings);
+    if (skillSeen) return { mention, status: "unresolved" };
+    const resolved = resolveOne(mention, catalogs, settings);
+    if (resolved.status !== "unresolved") skillSeen = true;
+    return resolved;
+  });
 }

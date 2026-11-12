@@ -1,9 +1,6 @@
 /** The kind of target a mention names. */
 export type TokenClass = "skill" | "path" | "tool" | "role" | "url";
 
-/** The classes that can change the expanded message. */
-export type ExpandableClass = "skill" | "tool" | "role";
-
 /** A half-open range in code units, matching JavaScript string offsets. */
 export interface Range {
   start: number;
@@ -51,17 +48,12 @@ export interface ColourSpan extends Range {
 }
 
 /** Plain-data catalogs built by the pi adapters. */
-export interface CatalogEntry {
-  label: string;
-  target: Target;
-}
-
 export interface Catalogs {
-  skills: readonly CatalogEntry[];
-  tools: readonly CatalogEntry[];
-  roles: readonly CatalogEntry[];
+  skills: readonly Target[];
+  tools: readonly Target[];
+  roles: readonly Target[];
   /** Path existence is the one catalog that needs the filesystem. */
-  paths: { has(label: string): boolean };
+  paths: { has(label: string): boolean; readonly version?: number };
 }
 
 /** Colour roles are theme foreground tokens, not ANSI strings. */

@@ -69,3 +69,12 @@ test("mentions do not overlap and the longest match at a position wins", () => {
   assert.deepEqual(spans("$a$b"), ["$a"]);
   assert.deepEqual(spans("$a $b"), ["$a", "$b"]);
 });
+
+test("the grammar's literal and unresolved examples keep their spans", () => {
+  assert.deepEqual(spans("$PATH"), ["$PATH"]);
+  assert.deepEqual(spans("%bashfoo"), ["%bashfoo"]);
+  assert.deepEqual(spans("%bash:"), ["%bash:"]);
+  assert.deepEqual(spans("%unknown,"), ["%unknown"]);
+  assert.deepEqual(spans("@src/foo.ts"), ["@src/foo.ts"]);
+  assert.deepEqual(labels('$"my skill"'), []);
+});

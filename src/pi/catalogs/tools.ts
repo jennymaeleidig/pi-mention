@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ToolInfo } from "@earendil-works/pi-coding-agent";
-import type { CatalogEntry } from "../../core/types.ts";
+import type { Target } from "../../core/types.ts";
 
 const SANITIZE = /[^A-Za-z0-9_]/g;
 
@@ -26,21 +26,21 @@ function reachable(tool: ToolInfo, active: ReadonlySet<string>): boolean {
     case "model-only":
       return active.has(tool.name);
     case "codemode":
-      return active.has("codemode");
+      return active.has(tool.name) || active.has("codemode");
     case "deferred":
-      return active.has("tool_search");
+      return active.has(tool.name) || active.has("codemode");
   }
 }
 
 /** The color catalog uses the same reachability rules as the expansion catalog. */
-export function toolCatalog(pi: ExtensionAPI): CatalogEntry[] {
+export function toolCatalog(pi: ExtensionAPI): Target[] {
   try {
     const active = new Set(pi.getActiveTools());
-    const byLabel = new Map<string, CatalogEntry>();
+    const byLabel = new Map<string, Target>();
     for (const tool of pi.getAllTools()) {
       if (!reachable(tool, active)) continue;
       const label = labelOf(tool);
-      byLabel.set(label, { label, target: { class: "tool", label, name: tool.name } });
+      byLabel.set(label, { class: "tool", label, name: tool.name });
     }
     return [...byLabel.values()];
   } catch {
