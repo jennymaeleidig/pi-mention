@@ -26,6 +26,13 @@ export function register(pi: ExtensionAPI): void {
   let loaded: LoadedSettings | undefined;
   let seamsInstalled = false;
   let uiInstalled = false;
+  let toolRevision = 0;
+  let requestRender: (() => void) | undefined;
+
+  const toolsChanged = (): void => {
+    toolRevision++;
+    requestRender?.();
+  };
 
   pi.on("session_start", (_event, ctx) => {
     loaded ??= readSettings(pi);
@@ -44,6 +51,15 @@ export function register(pi: ExtensionAPI): void {
     if (ctx.mode !== "tui" || uiInstalled) return;
     uiInstalled = true;
 
+    // A server that connects or a tool that becomes active changes the live
+    // catalog; bump the revision so the colour memo recomputes the same text.
+    pi.on("mcp_servers_change", () => {
+      toolsChanged();
+    });
+    pi.on("tool_execution_end", () => {
+      toolsChanged();
+    });
+
     const paths = pathCatalog(ctx.cwd);
     const catalogs: Catalogs = {
       skills: skillCatalog(pi),
@@ -52,12 +68,16 @@ export function register(pi: ExtensionAPI): void {
       get tools() {
         return toolCatalog(pi);
       },
+      get toolsVersion() {
+        return toolRevision;
+      },
       roles: roleCatalog(ctx.cwd),
       paths,
     };
     installAutocomplete(ctx.ui, settings, () => catalogs);
-    installEditorColours(ctx.ui, spansForLinesFactory(catalogs, settings), (requestRender) =>
-      paths.setOnChange(requestRender),
-    );
+    installEditorColours(ctx.ui, spansForLinesFactory(catalogs, settings), (bind) => {
+      requestRender = bind;
+      paths.setOnChange(bind);
+    });
   });
 }

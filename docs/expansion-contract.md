@@ -159,7 +159,6 @@ There are two pure expansion seams, one per expandable class:
 expand(
   message: string,
   resolved: ResolvedMention[],
-  config: Settings,
   options?: ExpandOptions,
 ): ExpandedMessage
 
@@ -185,11 +184,11 @@ toolBlockEntries(
 toolBlockText(entries: readonly Target[]): string
 ```
 
-`expand` takes the message text, the already-resolved mentions, configuration,
-and optional adapter-supplied skill sources. It returns the expanded text plus
-the skill block to use at input and, when a resolved skill cannot become a
-block, the failure for the adapter's one notice. The `pi` adapter supplies a
-`SkillSource` (location, base directory and frontmatter-stripped body) through
+`expand` takes the message text, the already-resolved mentions and optional
+adapter-supplied skill sources. It returns the expanded text plus the skill
+block to use at input and, when a resolved skill cannot become a block, the
+failure for the adapter's one notice. The `pi` adapter supplies a `SkillSource`
+(location, base directory and frontmatter-stripped body) through
 `options.skillSource`, so expansion never reads a file itself.
 
 `expandTools` takes the message text, the already-resolved tool mentions and the

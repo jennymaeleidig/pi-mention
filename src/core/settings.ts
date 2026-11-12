@@ -71,7 +71,21 @@ const STRATEGY = Union([
   Literal("alphabetical"),
   Literal("sourceOrder"),
 ]);
-const TRIGGER = TypeString({ minLength: 1, maxLength: 1, pattern: /^[^\s/@]$/u });
+const RESERVED_TRIGGERS: ReadonlySet<string> = new Set(["/", "@", "\\", "`"]);
+
+/**
+ * A trigger is one BMP code point that the parser can see as a single code
+ * unit. Astral characters and lone surrogates are rejected because the scanner
+ * walks UTF-16 code units.
+ */
+function isTrigger(value: unknown): value is string {
+  if (typeof value !== "string" || value.length !== 1) return false;
+  const code = value.codePointAt(0);
+  if (code === undefined || code > 0xffff) return false;
+  if (code >= 0xd800 && code <= 0xdfff) return false;
+  if (/\s/u.test(value)) return false;
+  return !RESERVED_TRIGGERS.has(value);
+}
 
 /** The foreground theme tokens pi 1.5.2 accepts. Core cannot import pi. */
 export const FOREGROUND_ROLES: ReadonlySet<string> = new Set([
@@ -229,13 +243,13 @@ function readTriggers(raw: RawObject, diagnostics: Diagnostic[]): Settings["trig
   for (const name of TRIGGER_CLASSES) {
     const value = group[name];
     if (value === undefined) continue;
-    if (Check(TRIGGER, value)) {
-      customs[name] = value as string;
+    if (isTrigger(value)) {
+      customs[name] = value;
     } else {
       diagnostics.push(
         fallbackDiagnostic(
           `piMention.triggers.${name}`,
-          'must be a single character other than whitespace, "/" or "@"',
+          'must be one character other than whitespace, "/", "@", "\\" or "`"',
           JSON.stringify(triggers[name]),
         ),
       );

@@ -149,7 +149,6 @@ export function unescapeExpandedText(text: string, settings: Settings): string {
 export function expand(
   message: string,
   resolved: readonly ResolvedMention[],
-  _settings: Settings,
   options: ExpandOptions = {},
 ): ExpandedMessage {
   const skill = firstResolvedSkill(resolved);
@@ -195,7 +194,7 @@ function leadingRoleMention(
  */
 function liveRoleTarget(target: Target, catalogs: Catalogs): Target | undefined {
   return catalogs.roles.find(
-    (candidate) => candidate.label === target.label && toolKey(candidate) === toolKey(target),
+    (candidate) => candidate.label === target.label && targetKey(candidate) === targetKey(target),
   );
 }
 
@@ -253,7 +252,7 @@ export function expandRoles(
   const target = liveRoleTarget(mention.target, catalogs);
   if (!target) return { text: message };
 
-  const name = toolKey(target);
+  const name = targetKey(target);
   const before = message.slice(0, mention.mention.span.start);
   const task = roleTask(message.slice(mention.mention.span.end));
   return {
@@ -264,12 +263,12 @@ export function expandRoles(
 }
 
 /** The registered name, falling back to the label a user typed. */
-export function toolKey(target: Target): string {
+export function targetKey(target: Target): string {
   return target.name ?? target.label;
 }
 
 /**
- * Collapse targets to their first occurrence, keyed by `toolKey`.
+ * Collapse targets to their first occurrence, keyed by `targetKey`.
  *
  * Both the single-message block and the multi-part context adapter use this,
  * so a repeated target is listed once.
@@ -278,7 +277,7 @@ export function dedupeToolTargets(targets: readonly Target[]): Target[] {
   const seen = new Set<string>();
   const entries: Target[] = [];
   for (const target of targets) {
-    const key = toolKey(target);
+    const key = targetKey(target);
     if (seen.has(key)) continue;
     seen.add(key);
     entries.push(target);
@@ -288,30 +287,31 @@ export function dedupeToolTargets(targets: readonly Target[]): Target[] {
 
 /** Prefer the live catalog entry, so the block always reads current metadata. */
 function liveToolTarget(target: Target, catalogs: Catalogs): Target {
-  const key = toolKey(target);
-  return catalogs.tools.find((candidate) => toolKey(candidate) === key) ?? target;
+  const key = targetKey(target);
+  return catalogs.tools.find((candidate) => targetKey(candidate) === key) ?? target;
 }
 
 /** The signature line a tool block carries, with a generic fallback. */
-function toolSignature(target: Target): string {
+function toolFallbackSignature(target: Target): string {
   return (
-    target.signature ?? `${target.identifier ?? toolKey(target)}(args: unknown): Promise<unknown>;`
+    target.signature ??
+    `${target.identifier ?? targetKey(target)}(args: unknown): Promise<unknown>;`
   );
 }
 
 /** One tool-block entry: direct wording, or the codemode route when indirect. */
 function toolBlockLine(target: Target): string {
-  const name = toolKey(target);
+  const name = targetKey(target);
   if (target.reach === "indirect") {
     const identifier = target.identifier ?? name;
     const server = target.server ? ` (${target.server})` : "";
     return (
       `- \`${name}\`${server} — not declared to you. ` +
       `Reach it inside a codemode script: \`await tools.${identifier}(...)\`. ` +
-      `Signature: ${toolSignature(target)}`
+      `Signature: ${toolFallbackSignature(target)}`
     );
   }
-  return `- \`${name}\` — call it directly. Signature: ${toolSignature(target)}`;
+  return `- \`${name}\` — call it directly. Signature: ${toolFallbackSignature(target)}`;
 }
 
 export interface ExpandToolsOptions {
@@ -381,7 +381,7 @@ export function expandTools(
   for (const candidate of [...mentions].reverse()) {
     const target = liveToolTarget(candidate.target!, catalogs);
     const { start, end } = candidate.mention.span;
-    text = `${text.slice(0, start)}\`${toolKey(target)}\`${text.slice(end)}`;
+    text = `${text.slice(0, start)}\`${targetKey(target)}\`${text.slice(end)}`;
   }
   if (options.appendBlock === false) return { text };
 

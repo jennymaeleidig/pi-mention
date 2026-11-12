@@ -61,7 +61,7 @@ function expanded(
     settings,
   );
   const lookup = overrides ?? sources;
-  return expand(text, resolved, settings, {
+  return expand(text, resolved, {
     skillSource: (target) => lookup.get(target.label),
   });
 }
@@ -152,7 +152,7 @@ test("a missing body lookup leaves the mention literal and reports the failure",
     catalogs,
     defaultSettings(),
   );
-  const missing = expand("please $tdd this", resolved, defaultSettings(), {
+  const missing = expand("please $tdd this", resolved, {
     skillSource: () => undefined,
   });
   assert.equal(missing.skillBlock, undefined);

@@ -110,7 +110,7 @@ test("trigger overrides accept valid single characters", () => {
 });
 
 test("an invalid trigger falls back to its default with one diagnostic", () => {
-  for (const value of ["ab", " ", "/", "", 7]) {
+  for (const value of ["ab", " ", "/", "\\", "`", "😀", "", 7]) {
     const { settings, diagnostics } = loadSettings({ triggers: { skill: value } });
     assert.equal(settings.triggers.skill, "$", `value: ${JSON.stringify(value)}`);
     assert.equal(diagnostics.length, 1);

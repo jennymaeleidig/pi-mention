@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { colourLines } from "../src/pi/colours.ts";
+import { colourLines, spansForLinesFactory } from "../src/pi/colours.ts";
 import { defaultSettings } from "../src/core/settings.ts";
-import type { Catalogs } from "../src/core/types.ts";
+import type { Catalogs, Target } from "../src/core/types.ts";
 
 const catalogs: Catalogs = {
   skills: [{ class: "skill", label: "wayfinder" }],
@@ -63,4 +63,38 @@ test("colourLines projects spans onto the right line", () => {
   assert.deepEqual(lines[0], []);
   assert.deepEqual(lines[1], [{ start: 0, end: 10, role: "syntaxNumber" }]);
   assert.deepEqual(lines[2], []);
+});
+
+test("colourLines probes a path label and its punctuation-eligible prefixes", () => {
+  const probes: string[] = [];
+  const live: Catalogs = {
+    ...catalogs,
+    paths: { has: () => false, probe: (label) => probes.push(label) },
+  };
+
+  colourLines("@src/index.ts,", live, settings);
+
+  assert.deepEqual(probes, ["src/index.ts,", "src/index.ts"]);
+});
+
+test("the colour memo recomputes the same text when a tool appears", () => {
+  const tools: Target[] = [];
+  let toolsVersion = 0;
+  const live: Catalogs = {
+    ...catalogs,
+    get tools() {
+      return tools;
+    },
+    get toolsVersion() {
+      return toolsVersion;
+    },
+  };
+  const spansForLines = spansForLinesFactory(live, settings);
+
+  assert.deepEqual(spansForLines(["%late"])[0], [{ start: 0, end: 5, role: "warning" }]);
+
+  tools.push({ class: "tool", label: "late", name: "late" });
+  toolsVersion++;
+
+  assert.deepEqual(spansForLines(["%late"])[0], [{ start: 0, end: 5, role: "accent" }]);
 });

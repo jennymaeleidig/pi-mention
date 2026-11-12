@@ -101,8 +101,14 @@ export interface Catalogs {
   skills: readonly Target[];
   tools: readonly Target[];
   roles: readonly Target[];
-  /** Path existence is the one catalog that needs the filesystem. */
-  paths: { has(label: string): boolean; readonly version?: number };
+  /** Paths are the one catalog backed by the filesystem; `probe` starts I/O. */
+  paths: {
+    has(label: string): boolean;
+    probe?(label: string): void;
+    readonly version?: number;
+  };
+  /** Bumped when the live tool catalog may have changed, so the colour memo refreshes. */
+  readonly toolsVersion?: number;
 }
 
 /** Colour roles are theme foreground tokens, not ANSI strings. */

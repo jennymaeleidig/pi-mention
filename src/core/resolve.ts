@@ -103,7 +103,7 @@ function resolveOne(mention: Mention, catalogs: Catalogs, settings: Settings): R
   return resolvedMention(mention, entry, excluded ? "excluded" : "resolved", entry.label);
 }
 
-/** Resolve labels against the live catalogs. Pure: all I/O is behind `paths`. */
+/** Resolve labels against the live catalogs. Pure: reads the path cache only. */
 export function resolve(
   mentions: readonly Mention[],
   catalogs: Catalogs,

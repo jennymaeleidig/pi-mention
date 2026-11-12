@@ -17,7 +17,9 @@ One ESM package, TypeScript source published as-is, no build step, Node 22.
   Dev dependencies pin `@earendil-works/pi-coding-agent ^1.5` for types.
 - Runtime dependencies: `linkify-it`, `tlds`, and
   `@earendil-works/pi-codemode` pinned exactly `1.5.2`.
-- Dev dependencies: TypeScript and the Node test runner.
+- Dev dependencies: TypeScript, the Node test runner, Prettier, Husky,
+  lint-staged and `@types/node`. Husky and lint-staged run Prettier on staged
+  files; `format:check` is the CI guard.
 
 No bundler. No second package for colours.
 
@@ -49,11 +51,13 @@ src/pi/              the only code that knows pi
     skills.ts        pi.getCommands() skill entries
     tools.ts         pi.getAllTools() / pi.getActiveTools()
     roles.ts         agents/*.md files
-    paths.ts         filesystem checks
+    paths.ts         path stat cache and probe
     urls.ts          linkify-it spans
 
 src/index.ts         default extension entry
-test/                core fixtures + one wiring smoke test
+test/                core fixtures + adapter suites (input, context,
+                     autocomplete, history, editor-frame, catalogs)
+                     + one wiring smoke test
 ```
 
 Target-class adapters share the `Target` shape from `src/core/types.ts`.
@@ -66,7 +70,7 @@ parse(text: string, specs: TriggerSpec[]) -> { mentions: Mention[]; codeRanges: 
 
 resolve(mentions: Mention[], catalogs: Catalogs, config: Settings) -> ResolvedMention[]
 
-expand(message: string, resolved: ResolvedMention[], config: Settings,
+expand(message: string, resolved: ResolvedMention[],
        options?: ExpandOptions) -> ExpandedMessage
 
 expandTools(message: string, resolved: ResolvedMention[], catalogs: Catalogs,
@@ -99,7 +103,7 @@ pure while the pi adapter owns the I/O.
 the distinct targets a message contributes, and `toolBlockText` renders the
 block; the context adapter uses the two halves to put one block after the last
 text part of a multi-part message. `ToolReach` is `direct` or `indirect`, and
-`toolKey` and `dedupeToolTargets` keep the block, the adapter and the catalog
+`targetKey` and `dedupeToolTargets` keep the block, the adapter and the catalog
 agreeing on identity and first-occurrence order.
 
 `expandRoles` is the context seam's leading-only role expander. It replaces the
@@ -108,10 +112,17 @@ dispatch prefix and leaves the rest as the task; a role with only whitespace and
 punctuation after it gets the no-task instruction instead. Mid-sentence, later,
 unresolved and excluded roles stay literal, and no role body is read or inlined.
 
-`catalogs` is plain data built by the adapters. None of these pure functions
-does I/O, registers anything, activates a tool, or edits the prompt's tool
-section. The picker and colour layer read `catalogs.tools` through a live
-getter, so a tool that appears mid-session is mentionable without restarting.
+`catalogs` is plain data built by the adapters. `resolve` itself does no I/O,
+registers nothing, activates a tool, or edits the prompt's tool section. Paths
+are the one catalog backed by the filesystem: `paths.has` is a pure cache read,
+and `paths.probe` is the explicit I/O edge the colour adapter calls before
+typing a path token. A probe dedupes in-flight stats, caches both hits and
+misses with a timestamp, and revalidates after a short TTL (one second by
+default) so a file that appears later can become a hit. The picker and colour
+layer read `catalogs.tools` through a live getter, so a tool that appears
+mid-session is mentionable without restarting. The colour memo also keys on
+`catalogs.toolsVersion`, which the pi adapter bumps on `mcp_servers_change`
+and `tool_execution_end`, so an already-typed token recolours in place.
 
 ## Configuration
 
@@ -204,18 +215,23 @@ Frecency is state, not configuration:
 - `~/.pi/agent/state/pi-mention-selections.json`
 - `{ "version": 1, "skills": {}, "tools": {}, "roles": {} }`
 - Atomic writes.
+- At most 1000 targets per class (`skills`, `tools`, `roles`). On write, the
+  oldest entries by `lastSelectedAt` are evicted first until the class is back
+  at the cap; selection counts do not protect an ancient entry.
 - No migration from `~/.pi/agent/state/pi-mention-skill-selections.json`; the
   new store starts empty.
 
 ## Trigger collisions
 
-At load, the three triggers must be distinct, one character, not whitespace,
-not `/`, and not `@` (reserved for paths). The rule starts from the three
-defaults. A custom value is accepted only when it is valid and does not collide
-with any class's effective trigger, including the default of a class that has
-no override. An invalid or colliding value falls back to that class's own
-default with one diagnostic. The three triggers therefore stay distinct and no
-character is invented.
+At load, the three triggers must be distinct, exactly one BMP character (one
+UTF-16 code unit, so astral characters and lone surrogates are rejected), not
+whitespace, not `/`, not `@` (reserved for paths), not `\` (the escape) and not
+backtick (inline code). The rule starts from the three defaults. A custom value
+is accepted only when it is valid and does not collide with any class's
+effective trigger, including the default of a class that has no override. An
+invalid or colliding value falls back to that class's own default with one
+diagnostic. The three triggers therefore stay distinct and no character is
+invented.
 
 Another extension claiming the same character cannot be detected reliably. The
 outermost autocomplete provider wins; the configurable trigger is the escape
@@ -228,7 +244,10 @@ Node test runner, no browser and no live pi session in the unit suite.
 - Golden tests for every grammar example and every row of the expansion table.
 - Pure `colourSpans` and `paintRow` tests, including cursor-grapheme handling
   and escape preservation.
-- Fixture-driven catalog tests, one per target class.
+- Fixture-driven catalog tests, one per target class, plus adapter suites for
+  input, context, autocomplete, history, editor framing and catalog wiring.
+- A colour-memo test that a live tool appearing mid-session recolours the same
+  text, and path-catalog tests for the pure cache read and TTL revalidation.
 - Settings validation tests, including per-key fallback and diagnostics.
 - One wiring smoke test with a fake `ExtensionAPI` that drives the real
   registration.

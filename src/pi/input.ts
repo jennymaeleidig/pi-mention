@@ -77,7 +77,7 @@ export function installSkillInput(pi: ExtensionAPI, settings: Settings): void {
       : undefined;
     const source = entry ? await readSkill(entry) : undefined;
 
-    const expanded = expand(event.text, resolved, settings, {
+    const expanded = expand(event.text, resolved, {
       skillSource: (target) => (selected && sameTarget(target, selected) ? source : undefined),
     });
     if (!expanded.skillBlock) {
