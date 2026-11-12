@@ -101,6 +101,58 @@ The reason is in [docs/compatibility.md](docs/compatibility.md): zentui's
 editor bypasses the instance render path pi-mention decorates, so the extension
 refuses to produce a half-painted frame.
 
+## Migrating from @zigai/pi-mention-skill
+
+`@zigai/pi-mention-skill` and pi-mention both claim `$`, `%` and `&`. Remove the
+old package before installing this one, or the two providers will compete for
+the same triggers.
+
+This is the sequence used for the live install on macOS:
+
+```sh
+# 1. Remove the old mention package and its dependency tree.
+cd ~/.pi/agent/npm
+npm uninstall --legacy-peer-deps @zigai/pi-mention-skill
+
+# 2. Install this repo from the checkout (absolute path, npm install done).
+pi install /Users/jennyleidig/Documents/projects/pi-extensions/pi-mention
+```
+
+`npm uninstall` may stop on an unrelated peer conflict elsewhere in the live
+package set. `--legacy-peer-deps` resolves only the removal; check the diff to
+confirm it removed only `@zigai/pi-mention-skill`,
+`@zigai/pi-mention-anything` and their lock entries.
+
+`pi install` appends to the end of `packages`. Move the new entry immediately
+before `npm:pi-zentui` in `~/.pi/agent/settings.json`, keeping the rest of the
+order. A local install is written as an absolute path:
+
+```jsonc
+"packages": [
+  // …
+  "/Users/jennyleidig/Documents/projects/pi-extensions/pi-mention",
+  "npm:pi-zentui",
+  // …
+]
+```
+
+Optionally remove the old package's settings and selection state; they are
+inert once the old extension is gone:
+
+```sh
+rm ~/.pi/agent/extension-settings/pi-mention-skill.json
+rm ~/.pi/agent/extension-settings/schemas/pi-mention-skill.schema.json
+rm ~/.pi/agent/state/pi-mention-anything-skill-selections.json
+```
+
+The old settings map onto the new key: `trigger` is `piMention.triggers.skill`,
+`hideSlashSkills` and `completionSuffix` keep their names, and
+`initialSuggestions` becomes `piMention.ranking`. A default old config needs no
+`piMention` key at all. Selection history is not migrated; the new store starts
+empty. Restart pi after moving the package entry (or edit settings and use
+`/reload` to rebind the extension). Confirm with `pi list` that this package is
+present and `@zigai/pi-mention-skill` is not.
+
 ## Token classes
 
 There are five token classes: skill, path, tool, agent role and URL. A quoted
