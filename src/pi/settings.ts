@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { loadSettings } from "../core/settings.ts";
+import { defaultSettings, loadSettings } from "../core/settings.ts";
 import type { Diagnostic, Settings } from "../core/types.ts";
 
 export interface LoadedSettings {
@@ -19,12 +19,20 @@ export function readSettings(pi: ExtensionAPI): LoadedSettings {
   try {
     raw = (pi.getSettings() as { piMention?: unknown }).piMention;
   } catch {
-    return loadSettings(undefined);
+    return {
+      settings: defaultSettings(),
+      diagnostics: [
+        {
+          key: "piMention",
+          message: "piMention could not be read from pi settings; using the defaults.",
+        },
+      ],
+    };
   }
   return loadSettings(raw);
 }
 
-/** One warning line for the diagnostics that session_start shows once. */
+/** One warning line for the diagnostics that each session_start shows. */
 export function settingsWarning(diagnostics: readonly Diagnostic[]): string {
   return `pi-mention settings: ${diagnostics.map((diagnostic) => diagnostic.message).join(" ")}`;
 }

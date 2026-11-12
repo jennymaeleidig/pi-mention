@@ -21,17 +21,26 @@ test("readSettings validates the effective piMention key", () => {
   assert.match(settingsWarning(diagnostics), /^pi-mention settings: /);
 });
 
-test("an absent or unreadable settings object yields defaults without a diagnostic", () => {
+test("an absent settings object yields defaults without a diagnostic", () => {
+  const { settings, diagnostics } = readSettings(piWith({}));
+  assert.deepEqual(settings, defaultSettings());
+  assert.deepEqual(diagnostics, []);
+});
+
+test("an unreadable settings object yields defaults with one diagnostic", () => {
   const throwing = {
     getSettings: () => {
       throw new Error("settings not ready");
     },
   } as unknown as ExtensionAPI;
 
-  for (const pi of [{}, piWith({}), throwing]) {
+  for (const pi of [{}, throwing]) {
     const { settings, diagnostics } = readSettings(pi as ExtensionAPI);
     assert.deepEqual(settings, defaultSettings());
-    assert.deepEqual(diagnostics, []);
+    assert.equal(diagnostics.length, 1);
+    assert.equal(diagnostics[0]?.key, "piMention");
+    assert.match(diagnostics[0]?.message ?? "", /could not be read/);
+    assert.match(diagnostics[0]?.message ?? "", /defaults/);
   }
 });
 

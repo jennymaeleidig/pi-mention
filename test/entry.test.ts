@@ -11,27 +11,20 @@ test("the entry exposes only its default factory", () => {
 });
 
 test("the extension registers only its session_start handler", () => {
-  const touched: string[] = [];
-  const events: unknown[] = [];
-  const pi = new Proxy(
-    {},
-    {
-      get: (_target, key) => {
-        touched.push(String(key));
-        return (...args: unknown[]) => {
-          events.push(args[0]);
-        };
-      },
+  const registrations: string[] = [];
+  const pi = {
+    on: (name: string) => {
+      registrations.push(name);
     },
-  ) as unknown as ExtensionAPI;
+    getSettings: () => ({}),
+  } as unknown as ExtensionAPI;
 
   piMention(pi);
 
-  assert.deepEqual(touched, ["on"]);
-  assert.deepEqual(events, ["session_start"]);
+  assert.deepEqual(registrations, ["session_start"]);
 });
 
-test("session_start warns once about a broken piMention", () => {
+test("session_start warns on every call about a broken piMention", () => {
   type Handler = (
     event: unknown,
     ctx: { mode: string; ui: { notify: (message: string, type?: string) => void } },
@@ -58,9 +51,11 @@ test("session_start warns once about a broken piMention", () => {
   handler?.({ type: "session_start", reason: "startup" }, ctx);
   handler?.({ type: "session_start", reason: "reload" }, ctx);
 
-  assert.equal(notifications.length, 1);
-  assert.equal(notifications[0]?.type, "warning");
-  assert.match(notifications[0]?.message ?? "", /piMention must be an object/);
+  assert.equal(notifications.length, 2);
+  for (const notification of notifications) {
+    assert.equal(notification.type, "warning");
+    assert.match(notification.message, /piMention must be an object/);
+  }
 });
 
 test("loading the entry writes nothing", () => {

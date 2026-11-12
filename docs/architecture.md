@@ -139,7 +139,8 @@ The extension reads one top-level key:
   label.
 - `ranking.strategy` is one of `frecency`, `recent`, `frequent`,
   `alphabetical`, `sourceOrder`.
-- Colour values are safe theme foreground roles. `*Bg` roles are invalid.
+- Colour values must be pi foreground theme-token names (`accent`, `mdLinkUrl`,
+  …). Background tokens, unknown names and non-strings are invalid.
 - The defaults are palette C from the accepted prototype: purple skill, cyan
   path, orange tool, green role, pink URL, yellow unresolved. Six distinct
   hues on `monokai-pro`.
@@ -148,11 +149,13 @@ The extension reads one top-level key:
 
 `loadSettings` validates the effective object. An invalid value falls back to
 the code default for that key and produces one diagnostic; diagnostics are
-notified once at `session_start`. A malformed `piMention` value (not an object)
-falls back to all defaults with one diagnostic. Unknown keys are ignored and
-never change behaviour. pi 1.5.2 has no settings-change event, so an edited key
-takes effect on the next session start or `/reload`, which rebinds the
-extension and re-reads the key.
+notified at every `session_start`. A malformed `piMention` value (not an object)
+falls back to all defaults with one diagnostic. A malformed section (for
+example `"colors": "bright"`) falls back to that section's defaults with one
+diagnostic and leaves the other sections alone. Unknown keys are ignored and
+never change behaviour. pi 1.5.2 has no settings-change event. The extension
+reads `pi.getSettings()` once when it is registered; a `/reload` that rebinds
+the extension, or a process restart, re-reads the effective key.
 
 ## Selection history
 
@@ -167,8 +170,12 @@ Frecency is state, not configuration:
 ## Trigger collisions
 
 At load, the three triggers must be distinct, one character, not whitespace,
-not `/`, and not `@` (reserved for paths). An invalid value falls back to its
-default with a diagnostic.
+not `/`, and not `@` (reserved for paths). The rule starts from the three
+defaults. A custom value is accepted only when it is valid and does not collide
+with any class's effective trigger, including the default of a class that has
+no override. An invalid or colliding value falls back to that class's own
+default with one diagnostic. The three triggers therefore stay distinct and no
+character is invented.
 
 Another extension claiming the same character cannot be detected reliably. The
 outermost autocomplete provider wins; the configurable trigger is the escape

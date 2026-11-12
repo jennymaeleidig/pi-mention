@@ -12,22 +12,17 @@ import { readSettings, settingsWarning, type LoadedSettings } from "./settings.t
  * Register the extension's pi surface. This is the one place that talks to
  * `ExtensionAPI`; the colour layer itself is pure.
  *
- * pi 1.5.2 has no settings-change event. `pi.getSettings()` is read on
- * `session_start`, so an edited key takes effect on the next session or
- * `/reload`, which rebinds extensions.
+ * pi 1.5.2 has no settings-change event. `pi.getSettings()` is read once when
+ * the extension is registered; a `/reload` that rebinds the extension (or a
+ * process restart) re-reads the settings.
  */
 export function register(pi: ExtensionAPI): void {
-  let loaded: LoadedSettings | undefined;
-  let notified = false;
+  const loaded: LoadedSettings = readSettings(pi);
   let installed = false;
 
   pi.on("session_start", (_event, ctx) => {
-    loaded ??= readSettings(pi);
-    if (!notified) {
-      notified = true;
-      if (loaded.diagnostics.length > 0) {
-        ctx.ui.notify(settingsWarning(loaded.diagnostics), "warning");
-      }
+    if (loaded.diagnostics.length > 0) {
+      ctx.ui.notify(settingsWarning(loaded.diagnostics), "warning");
     }
 
     if (ctx.mode !== "tui" || installed) return;

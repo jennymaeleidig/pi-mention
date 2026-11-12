@@ -7,7 +7,7 @@ import {
   type TSchema,
 } from "typebox";
 import { Check } from "typebox/schema";
-import type { ColourSettings, Diagnostic, Settings } from "./types.ts";
+import type { ColourSettings, Diagnostic, Settings, TriggerSpec } from "./types.ts";
 
 /** Palette C from the accepted prototype. */
 export const DEFAULT_SETTINGS: Settings = {
@@ -72,17 +72,66 @@ const STRATEGY = Union([
   Literal("sourceOrder"),
 ]);
 const TRIGGER = TypeString({ minLength: 1, maxLength: 1, pattern: /^[^\s/@]$/u });
-const COLOUR_ROLE = TypeString({ minLength: 1, pattern: /^(?!.*Bg$).*$/u });
 
-const TRIGGER_CLASSES = ["skill", "tool", "role"] as const;
-type TriggerClass = (typeof TRIGGER_CLASSES)[number];
-const NAME_CATEGORIES = ["skills", "tools", "roles"] as const;
+/** The foreground theme tokens pi 1.5.2 accepts. Core cannot import pi. */
+export const FOREGROUND_ROLES: ReadonlySet<string> = new Set([
+  "accent",
+  "border",
+  "borderAccent",
+  "borderMuted",
+  "success",
+  "error",
+  "warning",
+  "muted",
+  "dim",
+  "text",
+  "thinkingText",
+  "scrollbarTrack",
+  "scrollbarThumb",
+  "searchMatchText",
+  "userMessageText",
+  "customMessageText",
+  "customMessageLabel",
+  "toolTitle",
+  "toolOutput",
+  "mdHeading",
+  "mdLink",
+  "mdLinkUrl",
+  "mdCode",
+  "mdCodeBlock",
+  "mdCodeBlockBorder",
+  "mdQuote",
+  "mdQuoteBorder",
+  "mdHr",
+  "mdListBullet",
+  "toolDiffAdded",
+  "toolDiffRemoved",
+  "toolDiffContext",
+  "syntaxComment",
+  "syntaxKeyword",
+  "syntaxFunction",
+  "syntaxVariable",
+  "syntaxString",
+  "syntaxNumber",
+  "syntaxType",
+  "syntaxOperator",
+  "syntaxPunctuation",
+  "thinkingOff",
+  "thinkingMinimal",
+  "thinkingLow",
+  "thinkingMedium",
+  "thinkingHigh",
+  "thinkingXhigh",
+  "thinkingMax",
+  "bashMode",
+]);
+
+type TriggerClass = Exclude<TriggerSpec["class"], "path">;
+const TRIGGER_CLASSES: readonly TriggerClass[] = ["skill", "tool", "role"];
+const NAME_KEYS = ["skills", "tools", "roles"] as const;
 const COLOUR_KEYS = ["skill", "tool", "role", "path", "url", "unresolved", "excluded"] as const;
 
 type NameLists = Settings["exclude"];
-
-/** Fallbacks when a default trigger is already claimed; never whitespace or "/". */
-const TRIGGER_POOL = ["$", "%", "&", "!", "?", "^", "~"] as const;
 
 function fallbackDiagnostic(key: string, requirement: string, used: string): Diagnostic {
   return {
@@ -136,13 +185,13 @@ function readNameLists(
   diagnostics: Diagnostic[],
 ): NameLists {
   const result: NameLists = { ...fallbackValue };
-  for (const category of NAME_CATEGORIES) {
-    result[category] = readLeaf(
+  for (const name of NAME_KEYS) {
+    result[name] = readLeaf(
       raw,
-      category,
-      `${key}.${category}`,
+      name,
+      `${key}.${name}`,
       STRING_ARRAY,
-      fallbackValue[category],
+      fallbackValue[name],
       "must be an array of strings",
       "an empty list",
       diagnostics,
@@ -154,65 +203,65 @@ function readNameLists(
 function readColours(raw: RawObject, diagnostics: Diagnostic[]): ColourSettings {
   const result = { ...DEFAULT_SETTINGS.colors };
   for (const key of COLOUR_KEYS) {
-    result[key] = readLeaf(
-      raw,
-      key,
-      `colors.${key}`,
-      COLOUR_ROLE,
-      DEFAULT_SETTINGS.colors[key],
-      "must be a theme foreground role string, not a *Bg role",
-      JSON.stringify(DEFAULT_SETTINGS.colors[key]),
-      diagnostics,
-    );
+    const value = raw[key];
+    if (typeof value === "string" && FOREGROUND_ROLES.has(value)) {
+      result[key] = value;
+      continue;
+    }
+    if (value !== undefined) {
+      diagnostics.push(
+        fallbackDiagnostic(
+          `piMention.colors.${key}`,
+          "must be a pi foreground theme role name",
+          JSON.stringify(DEFAULT_SETTINGS.colors[key]),
+        ),
+      );
+    }
   }
   return result;
 }
 
 function readTriggers(raw: RawObject, diagnostics: Diagnostic[]): Settings["triggers"] {
   const group = readGroup(raw, "triggers", "triggers", diagnostics);
-  const values: Partial<Record<TriggerClass, string>> = {};
-  const problems = new Map<TriggerClass, string>();
+  const triggers = { ...DEFAULT_SETTINGS.triggers };
+  const customs: Partial<Record<TriggerClass, string>> = {};
 
   for (const name of TRIGGER_CLASSES) {
     const value = group[name];
     if (value === undefined) continue;
-    if (Check(TRIGGER, value)) values[name] = value as string;
-    else problems.set(name, 'must be a single character other than whitespace, "/" or "@"');
-  }
-
-  // A valid override beats a default; a duplicate among overrides falls back in
-  // canonical order, so a later typo cannot displace an accepted trigger.
-  const accepted = new Set<string>();
-  for (const name of TRIGGER_CLASSES) {
-    const value = values[name];
-    if (value === undefined) continue;
-    if (accepted.has(value)) {
-      delete values[name];
-      problems.set(name, `must differ from another token class (got ${JSON.stringify(value)})`);
+    if (Check(TRIGGER, value)) {
+      customs[name] = value as string;
     } else {
-      accepted.add(value);
+      diagnostics.push(
+        fallbackDiagnostic(
+          `piMention.triggers.${name}`,
+          'must be a single character other than whitespace, "/" or "@"',
+          JSON.stringify(triggers[name]),
+        ),
+      );
     }
   }
 
-  const triggers = { ...DEFAULT_SETTINGS.triggers };
+  // Start from the three defaults. Accept a custom value only when it is valid
+  // and does not collide with any class's effective trigger, including the
+  // default of a class that has no override. A collision falls back to this
+  // class's own default, which is still free at that point.
   for (const name of TRIGGER_CLASSES) {
-    const custom = values[name];
-    if (custom !== undefined) {
-      triggers[name] = custom;
+    const value = customs[name];
+    if (value === undefined) continue;
+
+    const collides = TRIGGER_CLASSES.some((other) => other !== name && triggers[other] === value);
+    if (collides) {
+      diagnostics.push(
+        fallbackDiagnostic(
+          `piMention.triggers.${name}`,
+          `must differ from another token class (got ${JSON.stringify(value)})`,
+          JSON.stringify(triggers[name]),
+        ),
+      );
       continue;
     }
-    const problem = problems.get(name);
-    if (problem === undefined) continue;
-
-    const preferred = DEFAULT_SETTINGS.triggers[name];
-    const chosen = accepted.has(preferred)
-      ? (TRIGGER_POOL.find((candidate) => !accepted.has(candidate)) ?? preferred)
-      : preferred;
-    triggers[name] = chosen;
-    accepted.add(chosen);
-    diagnostics.push(
-      fallbackDiagnostic(`piMention.triggers.${name}`, problem, JSON.stringify(chosen)),
-    );
+    triggers[name] = value;
   }
 
   return triggers;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DEFAULT_SETTINGS, loadSettings } from "../src/core/settings.ts";
+import { DEFAULT_SETTINGS, FOREGROUND_ROLES, loadSettings } from "../src/core/settings.ts";
 import type { Diagnostic } from "../src/core/types.ts";
 
 const keys = (diagnostics: readonly Diagnostic[]) =>
@@ -118,15 +118,34 @@ test("an invalid trigger falls back to its default with one diagnostic", () => {
   }
 });
 
-test("distinctness is fixed deterministically without stealing a valid override", () => {
+test("a custom trigger equal to another class's default falls back to its own default", () => {
+  for (const [input, key] of [
+    [{ skill: "%" }, "piMention.triggers.skill"],
+    [{ tool: "$" }, "piMention.triggers.tool"],
+  ] as const) {
+    const { settings, diagnostics } = loadSettings({ triggers: input });
+    assert.deepEqual(settings.triggers, DEFAULT_SETTINGS.triggers, JSON.stringify(input));
+    assert.deepEqual(keys(diagnostics), [key]);
+  }
+});
+
+test("colliding custom triggers fall back without inventing a character", () => {
   const { settings, diagnostics } = loadSettings({
-    triggers: { skill: "%", tool: "%", role: "&" },
+    triggers: { skill: "!", tool: "!", role: "?" },
   });
 
-  assert.equal(settings.triggers.skill, "%");
-  assert.equal(settings.triggers.tool, "$");
-  assert.equal(settings.triggers.role, "&");
+  assert.deepEqual(settings.triggers, { skill: "!", tool: "%", role: "?" });
   assert.deepEqual(keys(diagnostics), ["piMention.triggers.tool"]);
+  assert.equal(new Set(Object.values(settings.triggers)).size, 3);
+});
+
+test("all three valid custom triggers are accepted when distinct", () => {
+  const { settings, diagnostics } = loadSettings({
+    triggers: { skill: "!", tool: "^", role: "?" },
+  });
+
+  assert.deepEqual(settings.triggers, { skill: "!", tool: "^", role: "?" });
+  assert.deepEqual(diagnostics, []);
 });
 
 test("the path trigger has no setting and stays out of Settings", () => {
@@ -174,7 +193,7 @@ test("pinned and exclude lists accept strings and reject mixed arrays", () => {
   ]);
 });
 
-test("colour overrides reject background roles and non-strings", () => {
+test("colour overrides must be pi foreground theme roles", () => {
   const valid = loadSettings({
     colors: { skill: "syntaxKeyword", path: "accent", url: "mdLinkUrl" },
   });
@@ -183,10 +202,23 @@ test("colour overrides reject background roles and non-strings", () => {
   assert.equal(valid.settings.colors.url, "mdLinkUrl");
   assert.deepEqual(valid.diagnostics, []);
 
-  const invalid = loadSettings({ colors: { skill: "syntaxKeywordBg", path: 5 } });
+  const invalid = loadSettings({
+    colors: { skill: "syntaxKeywordBg", path: "notAThemeRole", role: 5 },
+  });
   assert.equal(invalid.settings.colors.skill, "syntaxNumber");
   assert.equal(invalid.settings.colors.path, "mdLinkUrl");
-  assert.deepEqual(keys(invalid.diagnostics), ["piMention.colors.path", "piMention.colors.skill"]);
+  assert.equal(invalid.settings.colors.role, "success");
+  assert.deepEqual(keys(invalid.diagnostics), [
+    "piMention.colors.path",
+    "piMention.colors.role",
+    "piMention.colors.skill",
+  ]);
+});
+
+test("every default colour is a foreground theme role", () => {
+  for (const role of Object.values(DEFAULT_SETTINGS.colors)) {
+    assert.ok(FOREGROUND_ROLES.has(role), role);
+  }
 });
 
 test("unknown keys are ignored without changing behaviour or warning", () => {
