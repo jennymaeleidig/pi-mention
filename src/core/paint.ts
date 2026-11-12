@@ -81,8 +81,16 @@ export function paintRow(
   while (i < row.length) {
     const esc = escapeAt(row, i);
     if (esc > 0) {
+      // Close before the escape, never reopen after it. Pi's hardware-cursor
+      // marker must stay immediately adjacent to the fake-cursor start marker;
+      // inserting a colour prefix between them makes the fake cursor visible
+      // instead of positioning the hardware cursor. The next grapheme reopens
+      // the span if it is still inside one.
+      if (open) {
+        out += open.suffix;
+        open = null;
+      }
       out += row.slice(i, i + esc);
-      if (open) out += open.suffix + open.prefix;
       i += esc;
       continue;
     }

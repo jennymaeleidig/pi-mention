@@ -117,3 +117,41 @@ test("stripAnsi removes unterminated strings to the end", () => {
   assert.equal(stripAnsi("a\u001b]no end"), "a");
   assert.equal(stripAnsi("a\u001b_pi:c"), "a");
 });
+
+test("a colour span never separates the hardware cursor from the fake cursor", () => {
+  const marker = "\u001b_pi:c\u0007";
+  const start = "\u001b_pi:fc\u0007";
+  const end = "\u001b_pi:/fc\u0007";
+  const row = `@src/fsa${marker}${start} ${end}`;
+  const out = paintRow(
+    row,
+    0,
+    { startCol: 0, length: 9 },
+    [{ start: 0, end: 8, role: "path" }],
+    wrap,
+  );
+
+  const at = out.indexOf(marker);
+  assert.notEqual(at, -1);
+  assert.equal(out.slice(at + marker.length).startsWith(start), true);
+  assert.equal(out.includes("\u001b[36m" + start), false);
+});
+
+test("a mid-token cursor keeps the marker adjacency and still paints the text", () => {
+  const marker = "\u001b_pi:c\u0007";
+  const start = "\u001b_pi:fc\u0007";
+  const end = "\u001b_pi:/fc\u0007";
+  const row = `@src/${marker}${start}f${end}sa`;
+  const out = paintRow(
+    row,
+    0,
+    { startCol: 0, length: 8 },
+    [{ start: 0, end: 8, role: "path" }],
+    wrap,
+  );
+
+  const at = out.indexOf(marker);
+  assert.notEqual(at, -1);
+  assert.equal(out.slice(at + marker.length).startsWith(start), true);
+  assert.equal(visible(out), "@src/fsa");
+});
