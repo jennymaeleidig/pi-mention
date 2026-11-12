@@ -6,7 +6,7 @@ import {
   Union,
   type TSchema,
 } from "typebox";
-import { Check } from "typebox/schema";
+import { Check } from "typebox/value";
 import type { ColourSettings, Diagnostic, Settings, TriggerSpec } from "./types.ts";
 
 /** Palette C from the accepted prototype. */
