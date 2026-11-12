@@ -364,8 +364,10 @@ MCP server names are validated to `[A-Za-z0-9_-]+`
 `PI dist/core/extensions/loader.js:385-400`). For MCP, the namespace suffix is therefore
 exactly the sanitized server: the only replacement is `-` → `_`. That makes
 `namespace.name + "__"` a safe prefix for splitting a *registered MCP name* **when the
-64-character cap did not truncate it**. A server name long enough to be cut can lose part
-of its own prefix; in that case fall back to the whole registered name. This is not a
+truncation in the hashed branch did not cut it**. The branch keeps only the first 55
+characters, so a long server name (or a collision on a server name longer than about 48
+characters) can lose part of its own prefix; in that case fall back to the whole
+registered name. This is not a
 general rule for non-MCP namespaces, whose names/aliases are arbitrary; use the alias
 (or the name without an actual `mcp__` prefix) there and match defensively.
 
@@ -392,8 +394,8 @@ name, but:
 - `read file` becomes `read_file`;
 - a long name becomes a 55-character prefix plus `_d7c05098`; a short colliding name
   keeps its whole short form plus the hash (neither is the raw name).
-- if the server segment itself was truncated by the cap, `namespace.name` is no longer a
-  prefix; use the whole registered name as the label.
+- if the 55-character truncation in the hashed branch cut the server segment,
+  `namespace.name` is no longer a prefix; use the whole registered name as the label.
 
 This is a real drift from the prior spec, which says the registered name "is never
 parsed" while also promising `%server:tool` labels with the raw tool label. There is no
@@ -780,7 +782,7 @@ package refuses it, delete that branch and drop those tools from the catalog ins
 
 | # | Prior claim | Verified at 1.5.2 |
 | --- | --- | --- |
-| D11 | `namespace.name` fallback is "`mcp__` prefix removed". | For MCP, server names are `[A-Za-z0-9_-]+`, so `mcpNamespace`'s only change is `-` → `_` and `namespace.name + "__"` is a safe prefix for the registered name **unless the 64-character cap truncated the server segment**. Use `aliases[0]` (raw server name) for display; fall back to the whole registered name on a truncation. For non-MCP namespaces, use the alias or strip `mcp__` only if present; do not assume the prefix. |
+| D11 | `namespace.name` fallback is "`mcp__` prefix removed". | For MCP, server names are `[A-Za-z0-9_-]+`, so `mcpNamespace`'s only change is `-` → `_` and `namespace.name + "__"` is a safe prefix for the registered name **unless the 55-character truncation in the hashed branch cut the server segment**. Use `aliases[0]` (raw server name) for display; fall back to the whole registered name on a truncation. For non-MCP namespaces, use the alias or strip `mcp__` only if present; do not assume the prefix. |
 | D12 | A name over 64 characters or colliding gets a `sha256(server\0tool)` suffix. | True, but the suffix is the first **8 hex** characters, the base is truncated to **55** and joined with `_`, and the 64 limit is checked after sanitization. Collisions are detected over sanitized names; both colliding tools get the hash. |
 | D13 | `direct` + inactive is out. | True: not declared and not callable through `executeTool`. |
 | D14 | `hidden` is out. | True; a withdrawn tool is re-registered hidden, and a disabled server hides all its tools. |
