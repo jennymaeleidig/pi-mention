@@ -28,9 +28,44 @@ const kagi: Target = {
   signature: KAGI_SIGNATURE,
 };
 
+function direct(label: string): Target {
+  return {
+    class: "tool",
+    label,
+    name: label,
+    reach: "direct",
+    signature: `${label}(args: unknown): Promise<unknown>;`,
+  };
+}
+
+function indirect(label: string, identifier = label): Target {
+  return {
+    class: "tool",
+    label,
+    name: label,
+    reach: "indirect",
+    identifier,
+    signature: `${label}(args: unknown): Promise<unknown>;`,
+  };
+}
+
+const modelOnly = direct("model-only");
+const activeCodemode = direct("codemode");
+const activeDeferred = direct("deferred-tool");
+const inactiveCodemode = indirect("inactive-code", "inactive_code");
+const inactiveDeferred = indirect("inactive-deferred", "inactive_deferred");
+
 const catalogs: Catalogs = {
   skills: [],
-  tools: [read, kagi],
+  tools: [
+    read,
+    kagi,
+    modelOnly,
+    activeCodemode,
+    activeDeferred,
+    inactiveCodemode,
+    inactiveDeferred,
+  ],
   roles: [],
   paths: { has: () => false },
 };
@@ -53,7 +88,39 @@ function expanded(text: string, settings: Settings = defaultSettings(), live: Ca
     live,
     settings,
   );
-  return expandTools(text, resolved, live, settings);
+  return expandTools(text, resolved, live);
+}
+
+const lineFor = (label: string) =>
+  `- \`${label}\` — call it directly. Signature: ${label}(args: unknown): Promise<unknown>;`;
+
+const routingRows = [
+  { input: "%read", inline: "`read`", line: directLine },
+  { input: "%model-only", inline: "`model-only`", line: lineFor("model-only") },
+  { input: "%codemode", inline: "`codemode`", line: lineFor("codemode") },
+  { input: "%deferred-tool", inline: "`deferred-tool`", line: lineFor("deferred-tool") },
+  {
+    input: "%inactive-code",
+    inline: "`inactive-code`",
+    line:
+      "- `inactive-code` — not declared to you. " +
+      "Reach it inside a codemode script: `await tools.inactive_code(...)`. " +
+      "Signature: inactive-code(args: unknown): Promise<unknown>;",
+  },
+  {
+    input: "%inactive-deferred",
+    inline: "`inactive-deferred`",
+    line:
+      "- `inactive-deferred` — not declared to you. " +
+      "Reach it inside a codemode script: `await tools.inactive_deferred(...)`. " +
+      "Signature: inactive-deferred(args: unknown): Promise<unknown>;",
+  },
+];
+
+for (const row of routingRows) {
+  test(`routing row ${row.input} has exact model text`, () => {
+    assert.equal(expanded(row.input).text, `${row.inline}\n\n${block(row.line)}`);
+  });
 }
 
 test("a direct tool is replaced by its registered name and gets the direct line", () => {
@@ -101,10 +168,19 @@ test("the block follows prose after a skill block and the skill block stays opaq
   assert.equal(expanded(`${opaque}\n\nprose`).text, `${opaque}\n\nprose`);
 });
 
-test("unresolved, excluded and code mentions stay literal", () => {
+test("unresolved, hidden, tool_search-only, excluded and code mentions stay literal", () => {
   assert.equal(expanded("%nope").text, "%nope");
+  assert.equal(expanded("%hidden").text, "%hidden");
   assert.equal(expanded("`%read`").text, "`%read`");
   assert.equal(expanded("```\n%read\n```").text, "```\n%read\n```");
+
+  // The deferred MCP tool is absent when tool_search is the only reacher: that
+  // route would activate it, so the catalog never offers it.
+  const toolSearchOnly: Catalogs = { ...catalogs, tools: [read] };
+  assert.equal(
+    expanded("%kagi:kagi_search_fetch", defaultSettings(), toolSearchOnly).text,
+    "%kagi:kagi_search_fetch",
+  );
 
   const excluded = defaultSettings();
   excluded.exclude.tools = ["read"];

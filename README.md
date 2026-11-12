@@ -3,10 +3,11 @@
 Mention-aware prompt editor for pi. `$` names a skill, `%` names a tool, `&`
 names an agent role, and `@` paths and URLs are coloured while you type.
 
-> **Status:** the editor colour layer, the `$`, `%`, `&` picker and `$` skill
-> expansion are live. A sent `$skill` becomes Pi's native
-> `[skill] name (ctrl+o to expand)` entry. `%` tools and `&` agent roles are
-> coloured and pickable; their expansion remains. See the
+> **Status:** the editor colour layer, the `$`, `%`, `&` picker, and `$` skill
+> and `%` tool expansion are live. A sent `$skill` becomes Pi's native
+> `[skill] name (ctrl+o to expand)` entry; a sent `%tool` reaches the model as
+> its registered name plus a `<tool_mentions>` block. `&` agent roles are
+> coloured and pickable; role expansion remains. See the
 > [map issue](https://github.com/jennymaeleidig/pi-mention/issues/1).
 
 ## Colours

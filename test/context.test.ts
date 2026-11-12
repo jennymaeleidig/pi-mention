@@ -31,32 +31,49 @@ const KAGI_SIGNATURE =
   "mcp__kagi__kagi_search_fetch(args: { limit?: number; query: string; }): Promise<unknown>;";
 
 const READ_LINE = `- \`read\` — call it directly. Signature: ${READ_SIGNATURE}`;
+const CODEMODE_LINE =
+  "- `codemode` — call it directly. Signature: codemode(args: unknown): Promise<unknown>;";
+const TOOL_SEARCH_LINE =
+  "- `tool_search` — call it directly. Signature: tool_search(args: unknown): Promise<unknown>;";
 const KAGI_LINE =
   "- `mcp__kagi__kagi_search_fetch` (kagi) — not declared to you. " +
   "Reach it inside a codemode script: `await tools.mcp__kagi__kagi_search_fetch(...)`. " +
   `Signature: ${KAGI_SIGNATURE}`;
+const KAGI_DIRECT_LINE = `- \`mcp__kagi__kagi_search_fetch\` — call it directly. Signature: ${KAGI_SIGNATURE}`;
 
-function setup() {
-  let handler: Handler | undefined;
-  const tools: ToolInfo[] = [
+function kagiTool(): ToolInfo {
+  return tool("mcp__kagi__kagi_search_fetch", "deferred", {
+    parameters: {
+      type: "object",
+      properties: { query: { type: "string" }, limit: { type: "number" } },
+      required: ["query"],
+    },
+    namespace: { name: "mcp__kagi", aliases: ["kagi"] },
+  });
+}
+
+function toolSearchTool(): ToolInfo {
+  return tool("tool_search", "model-only", { reachesTools: () => "all" });
+}
+
+function defaultTools(): ToolInfo[] {
+  return [
     tool("read", "direct"),
-    tool("mcp__kagi__kagi_search_fetch", "deferred", {
-      parameters: {
-        type: "object",
-        properties: { query: { type: "string" }, limit: { type: "number" } },
-        required: ["query"],
-      },
-      namespace: { name: "mcp__kagi", aliases: ["kagi"] },
-    }),
+    kagiTool(),
     tool("codemode", "model-only", { reachesTools: () => "all" }),
+    toolSearchTool(),
   ];
+}
+
+function setup(tools: ToolInfo[] = defaultTools(), active: string[] = ["read", "codemode"]) {
+  let handler: Handler | undefined;
   const pi = {
     on: (name: string, callback: Handler) => {
       if (name === "context") handler = callback;
       return () => {};
     },
     getAllTools: () => tools,
-    getActiveTools: () => ["read", "codemode"],
+    getActiveTools: () => active,
   } as unknown as ExtensionAPI;
 
   installContextExpansion(pi, defaultSettings());
@@ -83,6 +100,30 @@ test("resolved tools become registered names with one model-facing block", () =>
   const result = run([user("%read list files")]);
   assert.deepEqual(contents(result?.messages), [
     `\`read\` list files\n\n<tool_mentions>\n${READ_LINE}\n</tool_mentions>`,
+  ]);
+});
+
+test("active model-only, codemode and deferred tools are direct in the model text", () => {
+  const run = setup(defaultTools(), [
+    "read",
+    "codemode",
+    "tool_search",
+    "mcp__kagi__kagi_search_fetch",
+  ]);
+  const result = run([user("%codemode %tool_search %kagi:kagi_search_fetch")]);
+  assert.deepEqual(contents(result?.messages), [
+    "`codemode` `tool_search` `mcp__kagi__kagi_search_fetch`\n\n<tool_mentions>\n" +
+      `${CODEMODE_LINE}\n${TOOL_SEARCH_LINE}\n${KAGI_DIRECT_LINE}\n</tool_mentions>`,
+  ]);
+});
+
+test("tool_search alone leaves an inactive deferred tool literal but mentions itself", () => {
+  const run = setup([kagiTool(), toolSearchTool()], ["tool_search"]);
+  assert.equal(run([user("%kagi:kagi_search_fetch cats")]), undefined);
+
+  const result = run([user("%tool_search cats")]);
+  assert.deepEqual(contents(result?.messages), [
+    `\`tool_search\` cats\n\n<tool_mentions>\n${TOOL_SEARCH_LINE}\n</tool_mentions>`,
   ]);
 });
 

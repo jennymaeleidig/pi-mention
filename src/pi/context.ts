@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
+  dedupeToolTargets,
   expandTools,
   toolBlockEntries,
   toolBlockText,
@@ -53,7 +54,7 @@ export function installContextExpansion(pi: ExtensionAPI, settings: Settings): v
 
       const resolved = resolve(tools, live, settings);
       const entries = toolBlockEntries(text, resolved, live);
-      const expanded = expandTools(text, resolved, live, settings, { appendBlock: false });
+      const expanded = expandTools(text, resolved, live, { appendBlock: false });
       return { text: unescapeExpandedText(expanded.text, settings), entries };
     };
 
@@ -70,26 +71,21 @@ export function installContextExpansion(pi: ExtensionAPI, settings: Settings): v
 
       let messageChanged = false;
       const allEntries: Target[] = [];
-      const seen = new Set<string>();
       const content = message.content.map((part) => {
         if (part.type !== "text") return part;
         const { text, entries } = expandText(part.text);
-        for (const target of entries) {
-          const key = target.name ?? target.label;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          allEntries.push(target);
-        }
+        allEntries.push(...entries);
         if (text === part.text) return part;
         messageChanged = true;
         return { ...part, text };
       });
 
-      if (allEntries.length > 0) {
+      const entries = dedupeToolTargets(allEntries);
+      if (entries.length > 0) {
         const lastText = content.findLastIndex((part) => part.type === "text");
         const part = content[lastText];
         if (part?.type === "text") {
-          content[lastText] = { ...part, text: `${part.text}\n\n${toolBlockText(allEntries)}` };
+          content[lastText] = { ...part, text: `${part.text}\n\n${toolBlockText(entries)}` };
           messageChanged = true;
         }
       }

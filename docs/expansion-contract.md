@@ -148,7 +148,7 @@ The user selected the `general` role but gave no task. Do not call the `subagent
 
 ## Seam
 
-The pure seam is:
+There are two pure expansion seams, one per expandable class:
 
 ```ts
 expand(
@@ -157,12 +157,37 @@ expand(
   config: Settings,
   options?: ExpandOptions,
 ): ExpandedMessage
+
+expandTools(
+  message: string,
+  resolved: ResolvedMention[],
+  catalogs: Catalogs,
+  options?: ExpandToolsOptions,
+): ExpandedMessage
+
+toolBlockEntries(
+  message: string,
+  resolved: ResolvedMention[],
+  catalogs: Catalogs,
+): Target[]
+
+toolBlockText(entries: readonly Target[]): string
 ```
 
-It takes the message text, the already-resolved mentions, configuration, and
-optional adapter-supplied skill sources, and returns the expanded text plus the
-skill block to use at input and, when a resolved skill cannot become a block,
-the failure for the adapter's one notice. It performs no I/O, registers nothing,
-activates nothing, and never edits the prompt's tool section. The `pi` adapter
-supplies a `SkillSource` (location, base directory and frontmatter-stripped body)
-through `options.skillSource`, so expansion never reads a file itself.
+`expand` takes the message text, the already-resolved mentions, configuration,
+and optional adapter-supplied skill sources. It returns the expanded text plus
+the skill block to use at input and, when a resolved skill cannot become a
+block, the failure for the adapter's one notice. The `pi` adapter supplies a
+`SkillSource` (location, base directory and frontmatter-stripped body) through
+`options.skillSource`, so expansion never reads a file itself.
+
+`expandTools` takes the message text, the already-resolved tool mentions and the
+plain-data catalogs. It replaces each eligible mention inline and appends one
+tool block; `options.appendBlock: false` lets the context adapter do that once
+for a multi-part message. `toolBlockEntries` returns the distinct targets a
+message contributes, and `toolBlockText` renders them, so a multi-part message
+can share one block after its last text part.
+
+Neither seam performs I/O, registers anything, activates anything, or edits the
+prompt's tool section. Both keep unresolved, excluded and out-of-catalog
+mentions literal.

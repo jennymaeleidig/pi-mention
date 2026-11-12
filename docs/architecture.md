@@ -27,14 +27,14 @@ No bundler. No second package for colours.
 src/core/            no pi imports, no I/O
   grammar.ts         parse: mentions, spans, code ranges
   resolve.ts         label + catalog -> target
-  expand.ts          message + resolved + config -> expanded message
+  expand.ts          message + resolved + catalogs -> expanded text and blocks
   colors.ts          text + resolved + config -> colour spans
   paint.ts           one rendered row + spans -> insertion-only ANSI
   picker.ts          trigger token + ranking
   selection.ts       picker class and selection history shape
   settings.ts        raw object -> settings + diagnostics
-  types.ts           Mention, Target, ResolvedMention, SkillSource, ExpandedMessage,
-                     ColourSpan, Settings
+  types.ts           Mention, Target, ToolReach, ResolvedMention, SkillSource,
+                     ExpandedMessage, ColourSpan, Settings
 
 src/pi/              the only code that knows pi
   index.ts           registration and wiring
@@ -69,6 +69,14 @@ resolve(mentions: Mention[], catalogs: Catalogs, config: Settings) -> ResolvedMe
 expand(message: string, resolved: ResolvedMention[], config: Settings,
        options?: ExpandOptions) -> ExpandedMessage
 
+expandTools(message: string, resolved: ResolvedMention[], catalogs: Catalogs,
+            options?: ExpandToolsOptions) -> ExpandedMessage
+
+toolBlockEntries(message: string, resolved: ResolvedMention[], catalogs: Catalogs)
+  -> Target[]
+
+toolBlockText(entries: Target[]) -> string
+
 colourSpans(text: string, resolved: ResolvedMention[], config: Settings)
   -> ColourSpan[]
 
@@ -82,8 +90,19 @@ resolved skill's `SkillSource` (location, base directory and frontmatter-strippe
 body); expansion itself never reads a file. The optional source keeps the seam
 pure while the pi adapter owns the I/O.
 
-`catalogs` is plain data built by the adapters. None of these five does I/O,
-registers anything, activates a tool, or edits the prompt's tool section.
+`expandTools` is the context seam's pure expander. It replaces every eligible
+`%tool` mention inline with the registered name and appends one
+`<tool_mentions>` block in first-occurrence order. `toolBlockEntries` computes
+the distinct targets a message contributes, and `toolBlockText` renders the
+block; the context adapter uses the two halves to put one block after the last
+text part of a multi-part message. `ToolReach` is `direct` or `indirect`, and
+`toolKey` and `dedupeToolTargets` keep the block, the adapter and the catalog
+agreeing on identity and first-occurrence order.
+
+`catalogs` is plain data built by the adapters. None of these pure functions
+does I/O, registers anything, activates a tool, or edits the prompt's tool
+section. The picker and colour layer read `catalogs.tools` through a live
+getter, so a tool that appears mid-session is mentionable without restarting.
 
 ## Configuration
 

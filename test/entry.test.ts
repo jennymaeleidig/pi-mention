@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { test } from "node:test";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ToolInfo } from "@earendil-works/pi-coding-agent";
+import type { AutocompleteProvider } from "@earendil-works/pi-tui";
 import piMention, * as entry from "../src/index.ts";
 
 const ENTRY = new URL("../src/index.ts", import.meta.url).href;
@@ -11,7 +12,14 @@ type Handler = (
   ctx: {
     mode: string;
     cwd: string;
-    ui: { notify: (message: string, type?: string) => void };
+    ui: {
+      notify: (message: string, type?: string) => void;
+      addAutocompleteProvider?: (
+        factory: (current: AutocompleteProvider) => AutocompleteProvider,
+      ) => void;
+      getEditorComponent?: () => undefined;
+      setEditorComponent?: (factory: unknown) => void;
+    };
   },
 ) => void;
 
@@ -97,6 +105,80 @@ test("session_start warns on every call about a broken piMention", () => {
     assert.match(notification.message, /piMention must be an object/);
   }
 });
+
+test("the picker reads the tool catalog on every suggestion", async () => {
+  const handlers = new Map<string, Handler>();
+  let tools: ToolInfo[] = [tool("read")];
+  let factory: ((current: AutocompleteProvider) => AutocompleteProvider) | undefined;
+
+  const pi = {
+    on: (name: string, callback: unknown) => {
+      if (name === "session_start") handlers.set(name, callback as Handler);
+      return () => {};
+    },
+    getSettings: () => ({}),
+    getCommands: () => [],
+    getAllTools: () => tools,
+    getActiveTools: () => tools.map((candidate) => candidate.name),
+  } as unknown as ExtensionAPI;
+
+  piMention(pi);
+  const start = handlers.get("session_start");
+  assert.ok(start);
+  start(
+    { type: "session_start", reason: "startup" },
+    {
+      mode: "tui",
+      cwd: process.cwd(),
+      ui: {
+        notify: () => {},
+        addAutocompleteProvider: (
+          provider: (current: AutocompleteProvider) => AutocompleteProvider,
+        ) => {
+          factory = provider;
+        },
+        getEditorComponent: () => undefined,
+        setEditorComponent: () => {},
+      },
+    },
+  );
+  assert.ok(factory);
+
+  const current = {
+    async getSuggestions() {
+      return null;
+    },
+    applyCompletion: (lines: string[], cursorLine: number, cursorCol: number) => ({
+      lines,
+      cursorLine,
+      cursorCol,
+    }),
+  } satisfies AutocompleteProvider;
+  const provider = factory(current);
+  const suggest = (lines: string[]) =>
+    provider.getSuggestions(lines, 0, lines[0]?.length ?? 0, {
+      signal: new AbortController().signal,
+    });
+
+  assert.equal(await suggest(["%rev"]), null);
+
+  tools = [...tools, tool("review")];
+  const suggestions = await suggest(["%rev"]);
+  assert.deepEqual(
+    suggestions?.items.map((item) => item.value),
+    ["%review"],
+  );
+});
+
+function tool(name: string): ToolInfo {
+  return {
+    name,
+    description: name,
+    parameters: {},
+    exposure: "direct",
+    sourceInfo: { path: "test", source: "test", scope: "temporary", origin: "top-level" },
+  } as ToolInfo;
+}
 
 test("loading the entry writes nothing", () => {
   const result = spawnSync(

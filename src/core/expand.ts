@@ -162,8 +162,27 @@ export function expand(
   };
 }
 
-function toolKey(target: Target): string {
+/** The registered name, falling back to the label a user typed. */
+export function toolKey(target: Target): string {
   return target.name ?? target.label;
+}
+
+/**
+ * Collapse targets to their first occurrence, keyed by `toolKey`.
+ *
+ * Both the single-message block and the multi-part context adapter use this,
+ * so a repeated target is listed once.
+ */
+export function dedupeToolTargets(targets: readonly Target[]): Target[] {
+  const seen = new Set<string>();
+  const entries: Target[] = [];
+  for (const target of targets) {
+    const key = toolKey(target);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    entries.push(target);
+  }
+  return entries;
 }
 
 /** Prefer the live catalog entry, so the block always reads current metadata. */
@@ -172,12 +191,14 @@ function liveToolTarget(target: Target, catalogs: Catalogs): Target {
   return catalogs.tools.find((candidate) => toolKey(candidate) === key) ?? target;
 }
 
+/** The signature line a tool block carries, with a generic fallback. */
 function toolSignature(target: Target): string {
   return (
     target.signature ?? `${target.identifier ?? toolKey(target)}(args: unknown): Promise<unknown>;`
   );
 }
 
+/** One tool-block entry: direct wording, or the codemode route when indirect. */
 function toolBlockLine(target: Target): string {
   const name = toolKey(target);
   if (target.reach === "indirect") {
@@ -192,15 +213,6 @@ function toolBlockLine(target: Target): string {
   return `- \`${name}\` — call it directly. Signature: ${toolSignature(target)}`;
 }
 
-/**
- * Expand eligible `%tool` mentions for the model-facing message.
- *
- * Every resolved mention is replaced inline by its registered name. One
- * `<tool_mentions>` block follows the prose, with one entry per distinct target
- * in first-occurrence order. The leading native skill block and code ranges are
- * opaque. Unresolved, excluded and out-of-catalog mentions stay literal, and
- * this function activates and declares nothing.
- */
 export interface ExpandToolsOptions {
   /** False when the caller joins several text parts into one block. */
   appendBlock?: boolean;
@@ -224,19 +236,16 @@ function eligibleToolMentions(
 }
 
 function uniqueToolTargets(mentions: readonly ResolvedMention[], catalogs: Catalogs): Target[] {
-  const entries: Target[] = [];
-  const seen = new Set<string>();
-  for (const candidate of mentions) {
-    const target = liveToolTarget(candidate.target!, catalogs);
-    const key = toolKey(target);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    entries.push(target);
-  }
-  return entries;
+  return dedupeToolTargets(
+    mentions.map((candidate) => liveToolTarget(candidate.target!, catalogs)),
+  );
 }
 
-/** The distinct targets one text's tool block lists, in first-occurrence order. */
+/**
+ * The distinct targets one message's tool block lists, in first-occurrence
+ * order. Mentions inside the leading skill block, unresolved mentions and
+ * excluded mentions are skipped.
+ */
 export function toolBlockEntries(
   message: string,
   resolved: readonly ResolvedMention[],
@@ -245,16 +254,24 @@ export function toolBlockEntries(
   return uniqueToolTargets(eligibleToolMentions(message, resolved), catalogs);
 }
 
-/** Render the single `<tool_mentions>` block for a message. */
+/** Render the one `<tool_mentions>` block that follows the prose. */
 export function toolBlockText(entries: readonly Target[]): string {
   return `<tool_mentions>\n${entries.map(toolBlockLine).join("\n")}\n</tool_mentions>`;
 }
 
+/**
+ * Expand eligible `%tool` mentions for the model-facing message.
+ *
+ * Every resolved mention is replaced inline by its registered name. One
+ * `<tool_mentions>` block follows the prose, with one entry per distinct target
+ * in first-occurrence order. The leading native skill block and code ranges are
+ * opaque. Unresolved, excluded and out-of-catalog mentions stay literal, and
+ * this function activates and declares nothing.
+ */
 export function expandTools(
   message: string,
   resolved: readonly ResolvedMention[],
   catalogs: Catalogs,
-  _settings: Settings,
   options: ExpandToolsOptions = {},
 ): ExpandedMessage {
   const mentions = eligibleToolMentions(message, resolved);

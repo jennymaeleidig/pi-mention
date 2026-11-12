@@ -9,6 +9,7 @@ import { spansForLinesFactory } from "./colours.ts";
 import { installEditorColours } from "./editor.ts";
 import { installSkillInput } from "./input.ts";
 import { readSettings, settingsWarning, type LoadedSettings } from "./settings.ts";
+import type { Catalogs } from "../core/types.ts";
 
 /**
  * Register the extension's pi surface. This is the one place that talks to
@@ -44,9 +45,13 @@ export function register(pi: ExtensionAPI): void {
     uiInstalled = true;
 
     const paths = pathCatalog(ctx.cwd);
-    const catalogs = {
+    const catalogs: Catalogs = {
       skills: skillCatalog(pi),
-      tools: toolCatalog(pi),
+      // Read live, so a tool or server that appears mid-session reaches the
+      // picker and colours without waiting for a session restart.
+      get tools() {
+        return toolCatalog(pi);
+      },
       roles: roleCatalog(ctx.cwd),
       paths,
     };
